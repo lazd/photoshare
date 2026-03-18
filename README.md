@@ -20,6 +20,14 @@ npm start
 
 Open http://localhost:3192
 
+## Build static site
+
+```bash
+npm run build
+```
+
+Outputs a static site to `dist/` with all photos, metadata, and assets. Serve it with any static host (e.g. `npx serve dist` or deploy to GitHub Pages, Netlify, etc.).
+
 ## Features
 
 - **Auto-conversion**: Photos in `photos/` are converted to JPG and stored in `converted/`
