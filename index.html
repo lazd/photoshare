@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Share</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="layout">
+    <main class="main-content">
+      <section class="photo-preview">
+        <div class="photo-preview-inner" id="photoPreview">
+          <p class="photo-placeholder">Click a photo on the timeline or map and use arrow keys to navigate</p>
+        </div>
+      </section>
+      <section class="map-container">
+        <div id="map"></div>
+      </section>
+    </main>
+    <aside class="timeline">
+      <div class="timeline-track" id="timeline"></div>
+    </aside>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>
