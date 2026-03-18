@@ -358,6 +358,10 @@ function setupMap() {
 
   setMapStyleFn = setMapStyle;
   window.addEventListener('resize', () => map?.resize());
+  const mapContainer = document.querySelector('.map-container');
+  if (mapContainer) {
+    new ResizeObserver(() => map?.resize()).observe(mapContainer);
+  }
 }
 
 const TIMELINE_CELL_WIDTH = 80;

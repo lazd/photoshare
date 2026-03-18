@@ -45,12 +45,30 @@ body {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: auto 1fr;
   grid-template-rows: 1fr;
   gap: var(--preview-padding);
   padding: var(--preview-padding);
   padding-bottom: 0;
   overflow: hidden;
+}
+
+/* Wide viewport: photo area sized for landscape (4:3) so landscape photos fill the space */
+@media (min-aspect-ratio: 4/3) {
+  .photo-preview {
+    aspect-ratio: 4/3;
+    height: 100%;
+    width: auto;
+  }
+}
+
+/* Narrow viewport: photo area sized for portrait (3:4) so portrait photos fill the space */
+@media (max-aspect-ratio: 4/3) {
+  .photo-preview {
+    aspect-ratio: 3/4;
+    height: 100%;
+    width: auto;
+  }
 }
 
 .photo-preview {
@@ -322,6 +340,8 @@ body {
   .photo-preview {
     border-right: none;
     padding: 0;
+    aspect-ratio: unset;
+    width: 100%;
   }
 
   .timeline {
