@@ -256,8 +256,10 @@ body {
   flex-shrink: 0;
   padding-block: 0.5rem;
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 .timeline-track {
