@@ -87,6 +87,7 @@ body {
 .snap-carousel {
   display: flex;
   flex-direction: row;
+  gap: 0.5rem;
   width: 100%;
   height: 100%;
   overflow-x: auto;
