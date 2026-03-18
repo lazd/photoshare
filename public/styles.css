@@ -188,6 +188,32 @@ body {
   background: var(--bg-tertiary);
 }
 
+.maplibregl-ctrl-top-right .maplibregl-ctrl {
+  float: none;
+}
+
+.map-layer-control.maplibregl-ctrl {
+  border-radius: 4px;
+  overflow: hidden;
+}
+.map-layer-btn {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  appearance: none;
+  background: #fff;
+  cursor: pointer;
+}
+.map-layer-btn + .map-layer-btn {
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+.map-layer-btn:hover {
+  background: #f4f4f4;
+}
+.map-layer-btn.active {
+  background: #dedede;
+}
+
 .map-marker {
   background: none;
   border: none;
@@ -219,7 +245,7 @@ body {
 .map-marker-selected .map-marker-pin {
   border-color: #1a4d8c;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  transform: scale(2.5);
+  transform: scale(2);
 }
 
 .map-marker-selected {
