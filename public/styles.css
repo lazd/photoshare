@@ -70,6 +70,7 @@ body {
 
 .photo-placeholder {
   color: var(--text-secondary);
+  text-align: center;
   margin: 0;
 }
 

@@ -148,9 +148,7 @@ async function init() {
   renderTimeline();
   setupMap();
 
-  if (photos.length > 0) {
-    selectPhoto(photos[0].id);
-  } else {
+  if (photos.length === 0) {
     document.getElementById('photoPreview').innerHTML = '<p class="photo-placeholder">No photos yet</p>';
   }
 
