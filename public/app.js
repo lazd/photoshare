@@ -36,127 +36,6 @@ async function fetchPhotos() {
   return res.json();
 }
 
-function getAdjacentPhotos(photoId) {
-  const idx = photos.findIndex((p) => p.id === photoId);
-  if (idx === -1) return { prev: null, current: null, next: null };
-  return {
-    prev: idx > 0 ? photos[idx - 1] : null,
-    current: photos[idx],
-    next: idx < photos.length - 1 ? photos[idx + 1] : null
-  };
-}
-
-function buildCarouselHTML(prev, current, next) {
-  const slides = [prev, current, next].map((photo, i) => {
-    const slide = document.createElement('div');
-    slide.className = `carousel-slide${i === 1 ? ' current' : ''}`;
-    if (photo) {
-      const img = document.createElement('img');
-      img.src = `${CONVERTED_BASE}/${photo.converted_filename}`;
-      img.alt = `Photo ${photo.id}`;
-      slide.appendChild(img);
-    } else {
-      slide.appendChild(document.createElement('div'));
-    }
-    return slide;
-  });
-  const track = document.createElement('div');
-  track.className = 'carousel-track';
-  slides.forEach((s) => track.appendChild(s));
-  return track;
-}
-
-function updateCarousel(photoId) {
-  const { prev, current, next } = getAdjacentPhotos(photoId);
-  const track = buildCarouselHTML(prev, current, next);
-
-  const preview = document.getElementById('photoPreview');
-  preview.innerHTML = '';
-  const viewport = document.createElement('div');
-  viewport.className = 'carousel-viewport';
-  viewport.appendChild(track);
-  preview.appendChild(viewport);
-
-  const overlay = document.getElementById('fullscreenOverlay');
-  if (overlay.classList.contains('visible')) {
-    const fsCarousel = document.getElementById('fullscreenCarousel');
-    const fsViewport = overlay.querySelector('.carousel-viewport');
-    fsCarousel.innerHTML = '';
-    const fsTrack = buildCarouselHTML(prev, current, next);
-    fsCarousel.replaceChildren(...fsTrack.childNodes);
-    fsCarousel.classList.add('dragging');
-    requestAnimationFrame(() => {
-      setCarouselPosition(fsCarousel, 0, fsViewport?.offsetWidth);
-      requestAnimationFrame(() => fsCarousel.classList.remove('dragging'));
-    });
-  }
-
-  requestAnimationFrame(() => {
-    const previewTrack = document.querySelector('#photoPreview .carousel-track');
-    const previewViewport = document.querySelector('#photoPreview .carousel-viewport');
-    previewTrack?.classList.add('dragging');
-    setCarouselPosition(previewTrack, 0, previewViewport?.offsetWidth);
-    requestAnimationFrame(() => previewTrack?.classList.remove('dragging'));
-  });
-}
-
-function setCarouselPosition(track, dragPx, viewportWidth) {
-  if (!track) return;
-  const offset = viewportWidth ?? track.parentElement?.offsetWidth ?? 0;
-  if (offset > 0) {
-    track.style.transform = `translateX(calc(-${offset}px + ${dragPx}px))`;
-  } else {
-    track.style.transform = `translateX(calc(-33.333% + ${dragPx}px))`;
-  }
-}
-
-function selectPhoto(photoId, opts = {}) {
-  selectedPhotoId = photoId;
-  const photo = photos.find((p) => p.id === photoId);
-  if (!photo) return;
-
-  document.querySelectorAll('.timeline-cell').forEach((el) => {
-    el.classList.toggle('selected', el.dataset.photoId === String(photoId));
-  });
-
-  updateCarousel(photoId);
-
-  if (photo.latitude != null && photo.longitude != null && map) {
-    const zoom = getZoomForPhoto(photo);
-    const center = map.getCenter();
-    const dist = Math.hypot(
-      photo.latitude - center.lat,
-      photo.longitude - center.lng
-    );
-    const duration = Math.min(1.5, Math.max(0.25, 0.25 + (dist / 0.1) * 1.25));
-    map.flyTo([photo.latitude, photo.longitude], zoom, { duration });
-  }
-
-  updateMarkerStyles();
-
-  const cell = document.querySelector(`[data-photo-id="${photoId}"]`);
-  if (cell) cell.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-
-  if (!opts.skipHashUpdate) updateHash();
-}
-
-function toggleFullscreen(opts = {}) {
-  const overlay = document.getElementById('fullscreenOverlay');
-  if (!selectedPhotoId) return;
-
-  if (overlay.classList.contains('visible')) {
-    overlay.classList.remove('visible');
-    overlay.setAttribute('aria-hidden', 'true');
-    document.body.style.overflow = '';
-  } else {
-    overlay.classList.add('visible');
-    overlay.setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
-    updateCarousel(selectedPhotoId);
-  }
-  if (!opts.skipHashUpdate) updateHash();
-}
-
 function getZoomForPhoto(photo) {
   const photosWithCoords = photos.filter((p) => p.latitude != null && p.longitude != null);
   const radius = 0.003;
@@ -181,6 +60,108 @@ function updateMarkerStyles() {
       el.classList.toggle('map-marker-selected', marker.photoId === selectedPhotoId);
     }
   });
+}
+
+function buildSnapCarousel(containerEl) {
+  containerEl.innerHTML = '';
+  photos.forEach((photo) => {
+    const slide = document.createElement('div');
+    slide.className = 'snap-carousel-slide';
+    slide.dataset.photoId = photo.id;
+    const img = document.createElement('img');
+    img.src = `${CONVERTED_BASE}/${photo.converted_filename}`;
+    img.alt = `Photo ${photo.id}`;
+    img.loading = 'lazy';
+    slide.appendChild(img);
+    containerEl.appendChild(slide);
+  });
+  return containerEl;
+}
+
+function scrollToPhoto(scrollEl, photoId, behavior = 'smooth') {
+  if (!scrollEl || photos.length === 0) return;
+  const slide = scrollEl.querySelector(`[data-photo-id="${photoId}"]`);
+  if (!slide) return;
+  const slideWidth = scrollEl.offsetWidth;
+  const idx = photos.findIndex((p) => p.id === photoId);
+  if (idx === -1) return;
+  const targetScroll = idx * slideWidth;
+  scrollEl.scrollTo({ left: Math.max(0, targetScroll), behavior });
+}
+
+function getPhotoAtScrollPosition(scrollEl) {
+  if (!scrollEl || photos.length === 0) return null;
+  const rect = scrollEl.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const slides = scrollEl.querySelectorAll('.snap-carousel-slide');
+  for (const slide of slides) {
+    const slideRect = slide.getBoundingClientRect();
+    if (slideRect.left <= centerX && centerX <= slideRect.right) {
+      return parseInt(slide.dataset.photoId, 10);
+    }
+  }
+  const first = slides[0];
+  const last = slides[slides.length - 1];
+  if (first && centerX < first.getBoundingClientRect().left + first.getBoundingClientRect().width / 2) {
+    return parseInt(first.dataset.photoId, 10);
+  }
+  if (last && centerX > last.getBoundingClientRect().left + last.getBoundingClientRect().width / 2) {
+    return parseInt(last.dataset.photoId, 10);
+  }
+  return null;
+}
+
+function selectPhoto(photoId, opts = {}) {
+  selectedPhotoId = photoId;
+  const photo = photos.find((p) => p.id === photoId);
+  if (!photo) return;
+
+  document.querySelectorAll('.timeline-cell').forEach((el) => {
+    el.classList.toggle('selected', el.dataset.photoId === String(photoId));
+  });
+
+  const previewScroll = document.getElementById('previewCarousel');
+  const overlayScroll = document.getElementById('fullscreenCarousel');
+  if (previewScroll) scrollToPhoto(previewScroll, photoId, 'smooth');
+  if (overlayScroll) scrollToPhoto(overlayScroll, photoId, 'smooth');
+
+  if (photo.latitude != null && photo.longitude != null && map) {
+    const zoom = getZoomForPhoto(photo);
+    const center = map.getCenter();
+    const dist = Math.hypot(
+      photo.latitude - center.lat,
+      photo.longitude - center.lng
+    );
+    const duration = Math.min(1.5, Math.max(0.25, 0.25 + (dist / 0.1) * 1.25));
+    map.flyTo([photo.latitude, photo.longitude], zoom, { duration });
+  }
+
+  updateMarkerStyles();
+
+  const cell = document.querySelector(`.timeline-cell[data-photo-id="${photoId}"]`);
+  if (cell) {
+    cell.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  }
+
+  if (!opts.skipHashUpdate) updateHash();
+}
+
+function toggleFullscreen(opts = {}) {
+  const overlay = document.getElementById('fullscreenOverlay');
+  if (!selectedPhotoId) return;
+
+  if (overlay.classList.contains('visible')) {
+    overlay.classList.remove('visible');
+    overlay.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  } else {
+    overlay.classList.add('visible');
+    overlay.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    const fsScroll = document.getElementById('fullscreenCarousel');
+    if (fsScroll) scrollToPhoto(fsScroll, selectedPhotoId, 'auto');
+  }
+  if (!opts.skipHashUpdate) updateHash();
 }
 
 function navigatePhoto(direction) {
@@ -256,8 +237,36 @@ function setupMap() {
   requestAnimationFrame(() => map.invalidateSize());
 }
 
+function setupCarouselScrollSync(scrollEl, opts = {}) {
+  if (!scrollEl) return;
+  let scrollEndTimer = null;
+
+  function syncFromScroll() {
+    const photoId = getPhotoAtScrollPosition(scrollEl);
+    if (photoId != null && photoId !== selectedPhotoId) {
+      selectedPhotoId = photoId;
+      document.querySelectorAll('.timeline-cell').forEach((el) => {
+        el.classList.toggle('selected', el.dataset.photoId === String(photoId));
+      });
+      updateMarkerStyles();
+      updateHash();
+      if (opts.onSync && typeof opts.onSync === 'function') {
+        opts.onSync(photoId);
+      }
+    }
+  }
+
+  scrollEl.addEventListener('scroll', () => {
+    clearTimeout(scrollEndTimer);
+    scrollEndTimer = setTimeout(syncFromScroll, 100);
+  });
+
+  if ('onscrollend' in scrollEl) {
+    scrollEl.addEventListener('scrollend', syncFromScroll);
+  }
+}
+
 async function init() {
-  // Prevent pinch-to-zoom on iOS (viewport meta is often ignored)
   document.addEventListener('touchmove', (e) => {
     if (e.touches.length > 1) e.preventDefault();
   }, { passive: false });
@@ -268,6 +277,39 @@ async function init() {
 
   if (photos.length === 0) {
     document.getElementById('photoPreview').innerHTML = '<p class="photo-placeholder">No photos yet</p>';
+  } else {
+    const previewContainer = document.getElementById('photoPreview');
+    previewContainer.innerHTML = '';
+    const previewScroll = document.createElement('div');
+    previewScroll.id = 'previewCarousel';
+    previewScroll.className = 'snap-carousel';
+    previewContainer.appendChild(previewScroll);
+    buildSnapCarousel(previewScroll);
+
+    const overlayViewport = document.querySelector('.fullscreen-overlay .carousel-viewport');
+    if (overlayViewport) {
+      overlayViewport.innerHTML = '';
+      const fsScroll = document.createElement('div');
+      fsScroll.id = 'fullscreenCarousel';
+      fsScroll.className = 'snap-carousel';
+      overlayViewport.appendChild(fsScroll);
+      buildSnapCarousel(fsScroll);
+    }
+
+    setupCarouselScrollSync(previewScroll, {
+      onSync: (photoId) => {
+        const fsScroll = document.getElementById('fullscreenCarousel');
+        if (fsScroll && document.getElementById('fullscreenOverlay').classList.contains('visible')) {
+          scrollToPhoto(fsScroll, photoId, 'auto');
+        }
+      }
+    });
+    setupCarouselScrollSync(document.getElementById('fullscreenCarousel'), {
+      onSync: (photoId) => {
+        const previewScroll = document.getElementById('previewCarousel');
+        if (previewScroll) scrollToPhoto(previewScroll, photoId, 'auto');
+      }
+    });
   }
 
   function applyHash() {
@@ -278,6 +320,8 @@ async function init() {
       const isOpen = overlay.classList.contains('visible');
       if (fullscreen !== isOpen) toggleFullscreen({ skipHashUpdate: true });
       updateHash();
+    } else if (photos.length > 0 && selectedPhotoId == null) {
+      selectPhoto(photos[0].id, { skipHashUpdate: true });
     }
   }
 
@@ -299,182 +343,34 @@ async function init() {
     }
   });
 
-  const SWIPE_THRESHOLD = 40;
-  const SWIPE_VELOCITY = 0.25;
-  const SWIPE_MIN_DISTANCE = 15;
-
-  function setupCarouselSwipe(container, getTrack, getViewport) {
-    let startX = 0, startY = 0, startTime = 0;
-
-    container.addEventListener('touchstart', (e) => {
-      const track = getTrack();
-      if (!track) return;
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
-      startTime = Date.now();
-      track.classList.add('dragging');
-    }, { passive: true });
-
-    container.addEventListener('touchmove', (e) => {
-      const track = getTrack();
-      if (!track) return;
-      const deltaX = e.touches[0].clientX - startX;
-      const deltaY = e.touches[0].clientY - startY;
-      if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 5) {
-        e.preventDefault();
-      }
-      const idx = photos.findIndex((p) => p.id === selectedPhotoId);
-      const atStart = idx <= 0;
-      const atEnd = idx >= photos.length - 1;
-      let dragX = deltaX;
-      if (deltaX > 0 && atStart) dragX = deltaX * 0.3;
-      else if (deltaX < 0 && atEnd) dragX = deltaX * 0.3;
-      const viewport = getViewport();
-      const vw = viewport?.offsetWidth || container.offsetWidth;
-      const maxDrag = vw * 0.6;
-      dragX = Math.max(-maxDrag, Math.min(maxDrag, dragX));
-      setCarouselPosition(track, dragX, vw);
-    }, { passive: false });
-
-    container.addEventListener('touchend', (e) => {
-      const track = getTrack();
-      if (!track) return;
-      const touch = e.changedTouches[0];
-      const deltaX = touch.clientX - startX;
-      const deltaTime = Date.now() - startTime;
-      const velocity = deltaTime > 0 ? deltaX / deltaTime : 0;
-      const fastFlick = Math.abs(velocity) > SWIPE_VELOCITY && Math.abs(deltaX) > SWIPE_MIN_DISTANCE;
-      const pastThreshold = Math.abs(deltaX) > SWIPE_THRESHOLD;
-      const idx = photos.findIndex((p) => p.id === selectedPhotoId);
-      const atStart = idx <= 0;
-      const atEnd = idx >= photos.length - 1;
-
-      track.classList.remove('dragging');
-
-      let targetDir = null;
-      if (pastThreshold || fastFlick) {
-        if (deltaX > 0 && !atStart) targetDir = 'prev';
-        else if (deltaX < 0 && !atEnd) targetDir = 'next';
-      }
-
-      const viewport = getViewport();
-      const slideWidth = viewport?.offsetWidth || container.offsetWidth;
-
-      if (targetDir) {
-        const targetPx = targetDir === 'prev' ? slideWidth : -slideWidth;
-        setCarouselPosition(track, targetPx, slideWidth);
-        const onTransitionEnd = () => {
-          track.removeEventListener('transitionend', onTransitionEnd);
-          const nextId = targetDir === 'prev' ? photos[idx - 1].id : photos[idx + 1].id;
-          selectPhoto(nextId);
-        };
-        track.addEventListener('transitionend', onTransitionEnd);
-      } else {
-        setCarouselPosition(track, 0, slideWidth);
-      }
-    }, { passive: true });
-  }
-
-  const photoPreview = document.querySelector('.photo-preview');
-  setupCarouselSwipe(
-    photoPreview,
-    () => document.querySelector('#photoPreview .carousel-track'),
-    () => document.querySelector('#photoPreview .carousel-viewport')
-  );
-
-  document.querySelector('.photo-preview').addEventListener('click', (e) => {
-    if (e.target.closest('#photoPreview .carousel-slide.current')) {
+  document.querySelector('.photo-preview')?.addEventListener('click', (e) => {
+    if (e.target.closest('.snap-carousel')) {
       e.preventDefault();
       toggleFullscreen();
     }
   });
 
-  document.getElementById('fullscreenOverlay').addEventListener('click', () => {
+  document.getElementById('fullscreenOverlay')?.addEventListener('click', () => {
     if (document.getElementById('fullscreenOverlay').classList.contains('visible')) {
       toggleFullscreen();
     }
   });
 
   const overlay = document.getElementById('fullscreenOverlay');
-  let overlayStartX = 0, overlayStartY = 0, overlayStartTime = 0;
+  let overlayStartY = 0;
 
-  overlay.addEventListener('touchstart', (e) => {
+  overlay?.addEventListener('touchstart', (e) => {
     if (!overlay.classList.contains('visible')) return;
-    overlayStartX = e.touches[0].clientX;
     overlayStartY = e.touches[0].clientY;
-    overlayStartTime = Date.now();
-    const track = document.getElementById('fullscreenCarousel');
-    if (track) track.classList.add('dragging');
   }, { passive: true });
 
-  overlay.addEventListener('touchmove', (e) => {
+  overlay?.addEventListener('touchend', (e) => {
     if (!overlay.classList.contains('visible')) return;
-    const track = document.getElementById('fullscreenCarousel');
-    const deltaX = e.touches[0].clientX - overlayStartX;
-    const deltaY = e.touches[0].clientY - overlayStartY;
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 5) {
-      e.preventDefault();
-      const idx = photos.findIndex((p) => p.id === selectedPhotoId);
-      const atStart = idx <= 0;
-      const atEnd = idx >= photos.length - 1;
-      let dragX = deltaX;
-      if (deltaX > 0 && atStart) dragX = deltaX * 0.3;
-      else if (deltaX < 0 && atEnd) dragX = deltaX * 0.3;
-      const viewport = overlay.querySelector('.carousel-viewport');
-      const vw = viewport?.offsetWidth || window.innerWidth;
-      const maxDrag = vw * 0.6;
-      dragX = Math.max(-maxDrag, Math.min(maxDrag, dragX));
-      setCarouselPosition(track, dragX, vw);
-    }
-  }, { passive: false });
-
-  overlay.addEventListener('touchend', (e) => {
-    if (!overlay.classList.contains('visible')) return;
-    const track = document.getElementById('fullscreenCarousel');
-    const touch = e.changedTouches[0];
-    const deltaX = touch.clientX - overlayStartX;
-    const deltaY = touch.clientY - overlayStartY;
-    const deltaTime = Date.now() - overlayStartTime;
-    const velocity = deltaTime > 0 ? deltaX / deltaTime : 0;
-    const absX = Math.abs(deltaX);
-    const absY = Math.abs(deltaY);
-
-    if (track) track.classList.remove('dragging');
-
-    if (absY > SWIPE_THRESHOLD && absY > absX) {
+    const deltaY = e.changedTouches[0].clientY - overlayStartY;
+    if (Math.abs(deltaY) > 80) {
       toggleFullscreen();
-    } else {
-      const idx = photos.findIndex((p) => p.id === selectedPhotoId);
-      const atStart = idx <= 0;
-      const atEnd = idx >= photos.length - 1;
-      const pastThreshold = absX > SWIPE_THRESHOLD;
-      const fastFlick = Math.abs(velocity) > SWIPE_VELOCITY && absX > SWIPE_MIN_DISTANCE;
-
-      let targetDir = null;
-      if (pastThreshold || fastFlick) {
-        if (deltaX > 0 && !atStart) targetDir = 'prev';
-        else if (deltaX < 0 && !atEnd) targetDir = 'next';
-      }
-
-      if (targetDir && track) {
-        const viewport = overlay.querySelector('.carousel-viewport');
-        const width = viewport?.offsetWidth || window.innerWidth;
-        const targetPx = targetDir === 'prev' ? width : -width;
-        setCarouselPosition(track, targetPx, width);
-        const onTransitionEnd = () => {
-          track.removeEventListener('transitionend', onTransitionEnd);
-          const nextId = targetDir === 'prev' ? photos[idx - 1].id : photos[idx + 1].id;
-          selectPhoto(nextId);
-        };
-        track.addEventListener('transitionend', onTransitionEnd);
-      } else if (track) {
-        const viewport = overlay.querySelector('.carousel-viewport');
-        const width = viewport?.offsetWidth || window.innerWidth;
-        setCarouselPosition(track, 0, width);
-      }
     }
   }, { passive: true });
-
 }
 
 init().catch((err) => {
