@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "build": "node build.js",
-    "deploy": "npm run build && gh-pages -d dist",
+    "deploy": "npm run build && npx gh-pages-clean && gh-pages -d dist",
     "process": "node -e \"import('./photos.js').then(m => m.processAllPhotos())\""
   },
   "devDependencies": {

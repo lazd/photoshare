@@ -1,7 +1,7 @@
 node_modules/
 dist/
 photos/
-converted/
+/converted/
 photos.db
 .env
 *.log

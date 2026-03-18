@@ -1,4 +1,4 @@
-import { mkdir, copyFile, readFile, writeFile } from 'fs/promises';
+import { mkdir, copyFile, readFile, writeFile, rm } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { getAllPhotos } from './db.js';
@@ -22,14 +22,16 @@ async function build() {
 
   console.log(`Building static site with ${photos.length} photos...`);
 
+  await rm(OUT_DIR, { recursive: true }).catch(() => {});
   await mkdir(OUT_DIR, { recursive: true });
-  await mkdir(join(OUT_DIR, 'converted'), { recursive: true });
+  const imagesDir = join(OUT_DIR, 'images');
+  await mkdir(imagesDir, { recursive: true });
 
   const convertedDir = getConvertedDir();
   for (const p of photos) {
     await copyFile(
       join(convertedDir, p.converted_filename),
-      join(OUT_DIR, 'converted', p.converted_filename)
+      join(imagesDir, p.converted_filename)
     );
   }
 
@@ -47,7 +49,7 @@ async function build() {
   const staticAppJs = appJs
     .replace(
       "const API_BASE = '';\nconst PHOTOS_ENDPOINT = `${API_BASE}/api/photos`;\nconst CONVERTED_BASE = `${API_BASE}/converted`;",
-      "const CONVERTED_BASE = 'converted';"
+      "const CONVERTED_BASE = 'images';"
     )
     .replace(
       `async function fetchPhotos() {

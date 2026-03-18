@@ -52,6 +52,7 @@ export async function processPhoto(originalPath) {
   const takenAt = (metadata?.DateTimeOriginal ?? metadata?.CreateDate)?.toISOString?.() ?? null;
 
   const isHeic = ['.heic', '.heif'].includes(ext);
+  const resizeOptions = { fit: 'inside', withoutEnlargement: true };
   try {
     if (isHeic) {
       const inputBuffer = await readFile(resolvedPath);
@@ -60,10 +61,15 @@ export async function processPhoto(originalPath) {
         format: 'JPEG',
         quality: 0.9
       });
-      await writeFile(outputPath, outputBuffer);
+      await sharp(outputBuffer)
+        .rotate()
+        .resize(1440, 1440, resizeOptions)
+        .jpeg({ quality: 90 })
+        .toFile(outputPath);
     } else {
       await sharp(resolvedPath)
         .rotate()
+        .resize(1440, 1440, resizeOptions)
         .jpeg({ quality: 90 })
         .toFile(outputPath);
     }
