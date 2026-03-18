@@ -67,7 +67,8 @@ async function build() {
   await Promise.all([
     writeFile(join(OUT_DIR, 'index.html'), indexHtml),
     writeFile(join(OUT_DIR, 'styles.css'), stylesCss),
-    writeFile(join(OUT_DIR, 'app.js'), staticAppJs)
+    writeFile(join(OUT_DIR, 'app.js'), staticAppJs),
+    writeFile(join(OUT_DIR, 'robots.txt'), 'User-agent: *\nDisallow: /\n')
   ]);
 
   console.log(`Done! Static site in ${OUT_DIR}`);
