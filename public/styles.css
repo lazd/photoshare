@@ -334,18 +334,30 @@ body {
     gap: 0.5rem;
     padding: var(--preview-padding);
     padding-top: 0;
-    grid-template-rows: 1.2fr 0.8fr;
+    grid-template-rows: auto minmax(140px, 1fr);
   }
 
   .photo-preview {
     border-right: none;
     padding: 0;
-    aspect-ratio: unset;
     width: 100%;
+    height: auto;
+    max-height: 100%;
+    aspect-ratio: 3/4;
+    border-radius: var(--border-radius-large);
+    overflow: hidden;
+  }
+
+  .snap-carousel-slide img {
+    object-fit: cover;
   }
 
   .timeline {
     border-top: none;
     padding: 0.5rem;
+  }
+
+  .map-marker-selected .map-marker-pin {
+    transform: scale(1.25);
   }
 }

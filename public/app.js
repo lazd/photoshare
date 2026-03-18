@@ -354,10 +354,25 @@ function setupMap() {
       setMapStyle(btn.dataset.style);
     });
   });
-  map.addControl({ onAdd: () => layerControl, onRemove: () => layerControl.remove() }, 'top-right');
+  const layerControlObj = { onAdd: () => layerControl, onRemove: () => {} };
+  const updateLayerControlPosition = () => {
+    const pos = window.innerWidth <= 768 ? 'top-left' : 'top-right';
+    if (map.getContainer().contains(layerControl)) {
+      map.removeControl(layerControlObj);
+    }
+    map.addControl(layerControlObj, pos);
+  };
+  updateLayerControlPosition();
 
   setMapStyleFn = setMapStyle;
-  window.addEventListener('resize', () => map?.resize());
+  window.addEventListener('resize', () => {
+    map?.resize();
+    const newPos = window.innerWidth <= 768 ? 'top-left' : 'top-right';
+    const currentParent = layerControl.parentElement;
+    const inTopLeft = currentParent?.classList.contains('maplibregl-ctrl-top-left');
+    const wantTopLeft = newPos === 'top-left';
+    if (inTopLeft !== wantTopLeft) updateLayerControlPosition();
+  });
   const mapContainer = document.querySelector('.map-container');
   if (mapContainer) {
     new ResizeObserver(() => map?.resize()).observe(mapContainer);
