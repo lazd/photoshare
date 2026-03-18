@@ -10,6 +10,7 @@
   --highlight-border: #1f6feb;
   --border: #30363d;
   --marker-image-size: 42px;
+  --preview-padding: 1rem;
 }
 
 * {
@@ -43,16 +44,14 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr;
-  gap: 0;
+  gap: 0.5rem;
   overflow: hidden;
 }
 
 .photo-preview {
-  background: var(--bg-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -224,7 +223,6 @@ body {
 
 .timeline {
   flex-shrink: 0;
-  background: var(--bg-secondary);
   padding: 0.75rem 1rem;
   overflow-x: auto;
   scrollbar-width: none;
@@ -277,12 +275,13 @@ body {
 
   .main-content {
     grid-template-columns: 1fr;
+    gap: 0.5rem;
     grid-template-rows: 1.2fr 0.8fr;
   }
 
   .photo-preview {
     border-right: none;
-    padding: 0.5rem;
+    padding: 0;
   }
 
   .timeline {
