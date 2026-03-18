@@ -111,6 +111,10 @@ function getPhotoAtScrollPosition(scrollEl) {
   return null;
 }
 
+function getCarousel() {
+  return document.getElementById('photoCarousel');
+}
+
 function selectPhoto(photoId, opts = {}) {
   selectedPhotoId = photoId;
   const photo = photos.find((p) => p.id === photoId);
@@ -120,10 +124,8 @@ function selectPhoto(photoId, opts = {}) {
     el.classList.toggle('selected', el.dataset.photoId === String(photoId));
   });
 
-  const previewScroll = document.getElementById('previewCarousel');
-  const overlayScroll = document.getElementById('fullscreenCarousel');
-  if (previewScroll) scrollToPhoto(previewScroll, photoId, 'smooth');
-  if (overlayScroll) scrollToPhoto(overlayScroll, photoId, 'smooth');
+  const carousel = getCarousel();
+  if (carousel) scrollToPhoto(carousel, photoId, 'smooth');
 
   if (photo.latitude != null && photo.longitude != null && map) {
     const zoom = getZoomForPhoto(photo);
@@ -148,19 +150,39 @@ function selectPhoto(photoId, opts = {}) {
 
 function toggleFullscreen(opts = {}) {
   const overlay = document.getElementById('fullscreenOverlay');
-  if (!selectedPhotoId) return;
+  const carousel = getCarousel();
+  if (!selectedPhotoId || !carousel) return;
+
+  const viewport = overlay?.querySelector('.carousel-viewport');
+  const previewContainer = document.getElementById('photoPreview');
+  if (!viewport || !previewContainer) return;
+
+  const prevScrollBehavior = carousel.style.scrollBehavior;
+  carousel.style.scrollBehavior = 'auto';
 
   if (overlay.classList.contains('visible')) {
     overlay.classList.remove('visible');
     overlay.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';
+    if (carousel.parentElement === viewport) {
+      viewport.removeChild(carousel);
+      previewContainer.appendChild(carousel);
+      scrollToPhoto(carousel, selectedPhotoId, 'auto');
+    }
   } else {
     overlay.classList.add('visible');
     overlay.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
-    const fsScroll = document.getElementById('fullscreenCarousel');
-    if (fsScroll) scrollToPhoto(fsScroll, selectedPhotoId, 'auto');
+    if (carousel.parentElement === previewContainer) {
+      previewContainer.removeChild(carousel);
+      viewport.appendChild(carousel);
+      scrollToPhoto(carousel, selectedPhotoId, 'auto');
+    }
   }
+
+  requestAnimationFrame(() => {
+    carousel.style.scrollBehavior = prevScrollBehavior || '';
+  });
   if (!opts.skipHashUpdate) updateHash();
 }
 
@@ -280,36 +302,13 @@ async function init() {
   } else {
     const previewContainer = document.getElementById('photoPreview');
     previewContainer.innerHTML = '';
-    const previewScroll = document.createElement('div');
-    previewScroll.id = 'previewCarousel';
-    previewScroll.className = 'snap-carousel';
-    previewContainer.appendChild(previewScroll);
-    buildSnapCarousel(previewScroll);
+    const carousel = document.createElement('div');
+    carousel.id = 'photoCarousel';
+    carousel.className = 'snap-carousel';
+    previewContainer.appendChild(carousel);
+    buildSnapCarousel(carousel);
 
-    const overlayViewport = document.querySelector('.fullscreen-overlay .carousel-viewport');
-    if (overlayViewport) {
-      overlayViewport.innerHTML = '';
-      const fsScroll = document.createElement('div');
-      fsScroll.id = 'fullscreenCarousel';
-      fsScroll.className = 'snap-carousel';
-      overlayViewport.appendChild(fsScroll);
-      buildSnapCarousel(fsScroll);
-    }
-
-    setupCarouselScrollSync(previewScroll, {
-      onSync: (photoId) => {
-        const fsScroll = document.getElementById('fullscreenCarousel');
-        if (fsScroll && document.getElementById('fullscreenOverlay').classList.contains('visible')) {
-          scrollToPhoto(fsScroll, photoId, 'auto');
-        }
-      }
-    });
-    setupCarouselScrollSync(document.getElementById('fullscreenCarousel'), {
-      onSync: (photoId) => {
-        const previewScroll = document.getElementById('previewCarousel');
-        if (previewScroll) scrollToPhoto(previewScroll, photoId, 'auto');
-      }
-    });
+    setupCarouselScrollSync(carousel);
   }
 
   function applyHash() {
