@@ -5,13 +5,18 @@ let map = null;
 let markers = [];
 let selectedPhotoId = null;
 let isTogglingFullscreen = false;
+let isScrollingToSelection = false;
+let currentMapStyle = 'map';
+let setMapStyleFn = null;
 
 function parseHash() {
   const params = new URLSearchParams(location.hash.slice(1));
   const id = params.get('photo');
+  const map = params.get('map') === 'satellite' ? 'satellite' : 'map';
   return {
     id: id ? parseInt(id, 10) : null,
-    fullscreen: params.get('fullscreen') === 'true'
+    fullscreen: params.get('fullscreen') === 'true',
+    map
   };
 }
 
@@ -23,6 +28,7 @@ function updateHash() {
     params.set('photo', selectedPhotoId);
     if (isFullscreen) params.set('fullscreen', 'true');
   }
+  if (currentMapStyle === 'satellite') params.set('map', 'satellite');
   const newHash = params.toString() ? '#' + params.toString() : '';
   if (location.hash !== newHash) {
     location.hash = newHash;
@@ -46,10 +52,13 @@ function getZoomForPhoto(photo) {
   );
   const isMobile = window.innerWidth <= 768;
   const offset = isMobile ? -1 : 0;
-  if (nearby.length >= 15) return 16 + offset;
-  if (nearby.length >= 8) return 15 + offset;
-  if (nearby.length >= 4) return 14 + offset;
-  return 12 + offset;
+  let zoom;
+  if (nearby.length >= 15) zoom = 16 + offset;
+  else if (nearby.length >= 8) zoom = 15 + offset;
+  else if (nearby.length >= 4) zoom = 14 + offset;
+  else zoom = 12 + offset;
+  if (currentMapStyle === 'satellite') zoom = Math.max(10, zoom - 2);
+  return zoom;
 }
 
 function updateMarkerStyles() {
@@ -138,7 +147,11 @@ function selectPhoto(photoId, opts = {}) {
 
   const carousel = getCarousel();
   const scrollBehavior = opts.instant ? 'auto' : 'smooth';
-  if (carousel) scrollToPhoto(carousel, photoId, scrollBehavior);
+  if (carousel) {
+    isScrollingToSelection = true;
+    scrollToPhoto(carousel, photoId, scrollBehavior);
+    setTimeout(() => { isScrollingToSelection = false; }, 800);
+  }
 
   if (photo.latitude != null && photo.longitude != null && map) {
     const zoom = getZoomForPhoto(photo);
@@ -242,8 +255,25 @@ function renderTimeline() {
   });
 }
 
+const MAP_STYLE_LIBERTY = 'https://tiles.openfreemap.org/styles/liberty';
+const MAP_STYLE_SATELLITE = {
+  version: 8,
+  sources: {
+    satellite: {
+      type: 'raster',
+      tiles: ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg'],
+      tileSize: 256,
+      attribution: '&copy; <a href="https://s2maps.eu">EOX Sentinel-2 cloudless</a>'
+    }
+  },
+  layers: [{ id: 'satellite', type: 'raster', source: 'satellite' }]
+};
+
 function setupMap() {
   const photosWithCoords = photos.filter((p) => p.latitude != null && p.longitude != null);
+  const { map: hashMap } = parseHash();
+  currentMapStyle = hashMap === 'satellite' ? 'satellite' : 'map';
+  const initialStyle = currentMapStyle === 'satellite' ? MAP_STYLE_SATELLITE : MAP_STYLE_LIBERTY;
 
   const center = photosWithCoords.length
     ? [photosWithCoords[0].longitude, photosWithCoords[0].latitude]
@@ -251,7 +281,7 @@ function setupMap() {
 
   map = new maplibregl.Map({
     container: 'map',
-    style: 'https://tiles.openfreemap.org/styles/liberty',
+    style: initialStyle,
     center,
     zoom: 3
   });
@@ -262,8 +292,8 @@ function setupMap() {
     (a, b) => photos.findIndex((p) => p.id === a.id) - photos.findIndex((p) => p.id === b.id)
   );
 
-  map.on('load', () => {
-    map.resize();
+  function addMapMarkers() {
+    markers.forEach((m) => m.remove());
     markers = sortedByTimeline.map((photo) => {
       const photoUrl = `${CONVERTED_BASE}/${photo.converted_filename}`;
       const el = document.createElement('div');
@@ -277,12 +307,52 @@ function setupMap() {
       return marker;
     });
     updateMarkerStyles();
-    if (photosWithCoords.length > 1) {
+  }
+
+  let isFirstLoad = true;
+  map.on('load', () => {
+    map.resize();
+    addMapMarkers();
+    if (isFirstLoad && photosWithCoords.length > 1) {
       const bounds = new maplibregl.LngLatBounds();
       photosWithCoords.forEach((p) => bounds.extend([p.longitude, p.latitude]));
       map.fitBounds(bounds, { padding: 40 });
+      isFirstLoad = false;
     }
+    // Collapse attribution on load
+    document.querySelector('.maplibregl-ctrl-attrib-button')?.click();
   });
+
+  function setMapStyle(style) {
+    currentMapStyle = style;
+    layerControl.querySelectorAll('.map-layer-btn').forEach((b) => b.classList.toggle('active', b.dataset.style === style));
+    const savedCenter = map.getCenter();
+    const savedZoom = map.getZoom();
+    map.setStyle(style === 'satellite' ? MAP_STYLE_SATELLITE : MAP_STYLE_LIBERTY);
+    map.once('style.load', () => {
+      map.setCenter(savedCenter);
+      map.setZoom(savedZoom);
+      addMapMarkers();
+      document.querySelector('.maplibregl-ctrl-attrib-button')?.click();
+    });
+    updateHash();
+  }
+
+  const layerControl = document.createElement('div');
+  layerControl.className = 'map-layer-control maplibregl-ctrl maplibregl-ctrl-group';
+  layerControl.innerHTML = `
+    <button type="button" class="map-layer-btn" data-style="map" title="Map view">🗺️</button>
+    <button type="button" class="map-layer-btn" data-style="satellite" title="Satellite view">🛰️</button>
+  `;
+  layerControl.querySelectorAll('.map-layer-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.style === currentMapStyle);
+    btn.addEventListener('click', () => {
+      setMapStyle(btn.dataset.style);
+    });
+  });
+  map.addControl({ onAdd: () => layerControl, onRemove: () => layerControl.remove() }, 'top-right');
+
+  setMapStyleFn = setMapStyle;
   window.addEventListener('resize', () => map?.resize());
 }
 
@@ -306,7 +376,7 @@ function setupCarouselScrollSync(scrollEl, opts = {}) {
   if (!scrollEl) return;
 
   function syncSelection(photoId, updateHashNow = false) {
-    if (photoId == null || photoId === selectedPhotoId) return;
+    if (isScrollingToSelection || (photoId == null || photoId === selectedPhotoId)) return;
     selectedPhotoId = photoId;
     document.querySelectorAll('.timeline-cell').forEach((el) => {
       el.classList.toggle('selected', el.dataset.photoId === String(photoId));
@@ -347,6 +417,7 @@ function setupCarouselScrollSync(scrollEl, opts = {}) {
   }
 
   function onCarouselScrollEnd() {
+    isScrollingToSelection = false;
     if (isTogglingFullscreen) return;
     const photoId = getPhotoAtScrollPosition(scrollEl);
     syncTimelineToCarousel(scrollEl);
@@ -387,7 +458,8 @@ async function init() {
   }
 
   function applyHash() {
-    const { id, fullscreen } = parseHash();
+    const { id, fullscreen, map: hashMap } = parseHash();
+    if (hashMap && hashMap !== currentMapStyle && setMapStyleFn) setMapStyleFn(hashMap);
     if (id != null && photos.some((p) => p.id === id)) {
       if (id !== selectedPhotoId) selectPhoto(id, { skipHashUpdate: true, instant: true });
       const overlay = document.getElementById('fullscreenOverlay');
