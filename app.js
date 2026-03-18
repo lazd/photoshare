@@ -1,4 +1,4 @@
-const CONVERTED_BASE = 'converted';
+const CONVERTED_BASE = 'images';
 
 let photos = [];
 let map = null;
