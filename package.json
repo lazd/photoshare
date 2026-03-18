@@ -1,0 +1,19 @@
+{
+  "name": "photoshare",
+  "version": "1.0.0",
+  "description": "Photo sharing webpage with map and automatic conversion",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "process": "node -e \"import('./photos.js').then(m => m.processAllPhotos())\""
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.6.0",
+    "chokidar": "^4.0.1",
+    "exifr": "^7.1.3",
+    "express": "^4.21.1",
+    "heic-convert": "^2.1.0",
+    "sharp": "^0.33.5"
+  }
+}

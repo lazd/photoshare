@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Share</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <header>
+        <h1>Photo Share</h1>
+      </header>
+      <div class="photo-grid" id="photoGrid"></div>
+    </aside>
+    <main class="map-container">
+      <div id="map"></div>
+      <div id="mapPlaceholder" class="map-placeholder">
+        <p>Set <code>GOOGLE_MAPS_API_KEY</code> in your environment to enable the map.</p>
+      </div>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
