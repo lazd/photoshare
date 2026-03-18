@@ -49,7 +49,6 @@ body {
 
 .photo-preview {
   background: var(--bg-secondary);
-  border-right: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -95,6 +94,12 @@ body {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x pan-y;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.snap-carousel::-webkit-scrollbar {
+  display: none;
 }
 
 .snap-carousel-slide {
@@ -220,9 +225,10 @@ body {
 .timeline {
   flex-shrink: 0;
   background: var(--bg-secondary);
-  border-top: 1px solid var(--border);
   padding: 0.75rem 1rem;
   overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .timeline-track {
@@ -234,16 +240,7 @@ body {
 }
 
 .timeline::-webkit-scrollbar {
-  height: 8px;
-}
-
-.timeline::-webkit-scrollbar-track {
-  background: var(--bg-primary);
-}
-
-.timeline::-webkit-scrollbar-thumb {
-  background: var(--bg-tertiary);
-  border-radius: 4px;
+  display: none;
 }
 
 .timeline-cell {
@@ -285,13 +282,11 @@ body {
 
   .photo-preview {
     border-right: none;
-    border-bottom: 1px solid var(--border);
     padding: 0.5rem;
   }
 
   .timeline {
     border-top: none;
-    border-bottom: 1px solid var(--border);
     padding: 0.5rem;
   }
 }

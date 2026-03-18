@@ -86,7 +86,16 @@ function scrollToPhoto(scrollEl, photoId, behavior = 'smooth') {
   const idx = photos.findIndex((p) => p.id === photoId);
   if (idx === -1) return;
   const targetScroll = idx * slideWidth;
-  scrollEl.scrollTo({ left: Math.max(0, targetScroll), behavior });
+  if (behavior === 'auto') {
+    const prev = scrollEl.style.scrollBehavior;
+    scrollEl.style.scrollBehavior = 'auto';
+    scrollEl.scrollTo({ left: Math.max(0, targetScroll), behavior: 'auto' });
+    requestAnimationFrame(() => {
+      scrollEl.style.scrollBehavior = prev || '';
+    });
+  } else {
+    scrollEl.scrollTo({ left: Math.max(0, targetScroll), behavior });
+  }
 }
 
 function getPhotoAtScrollPosition(scrollEl) {
@@ -125,7 +134,8 @@ function selectPhoto(photoId, opts = {}) {
   });
 
   const carousel = getCarousel();
-  if (carousel) scrollToPhoto(carousel, photoId, 'smooth');
+  const scrollBehavior = opts.instant ? 'auto' : 'smooth';
+  if (carousel) scrollToPhoto(carousel, photoId, scrollBehavior);
 
   if (photo.latitude != null && photo.longitude != null && map) {
     const zoom = getZoomForPhoto(photo);
@@ -142,7 +152,8 @@ function selectPhoto(photoId, opts = {}) {
 
   const cell = document.querySelector(`.timeline-cell[data-photo-id="${photoId}"]`);
   if (cell) {
-    cell.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    const scrollBehavior = opts.instant ? 'auto' : 'smooth';
+    cell.scrollIntoView({ behavior: scrollBehavior, block: 'nearest', inline: 'center' });
   }
 
   if (!opts.skipHashUpdate) updateHash();
@@ -151,11 +162,20 @@ function selectPhoto(photoId, opts = {}) {
 function toggleFullscreen(opts = {}) {
   const overlay = document.getElementById('fullscreenOverlay');
   const carousel = getCarousel();
-  if (!selectedPhotoId || !carousel) return;
+  if (!carousel) return;
 
   const viewport = overlay?.querySelector('.carousel-viewport');
   const previewContainer = document.getElementById('photoPreview');
   if (!viewport || !previewContainer) return;
+
+  const photoId = getPhotoAtScrollPosition(carousel) ?? selectedPhotoId;
+  if (!photoId) return;
+
+  selectedPhotoId = photoId;
+  document.querySelectorAll('.timeline-cell').forEach((el) => {
+    el.classList.toggle('selected', el.dataset.photoId === String(photoId));
+  });
+  updateMarkerStyles();
 
   const prevScrollBehavior = carousel.style.scrollBehavior;
   carousel.style.scrollBehavior = 'auto';
@@ -167,7 +187,7 @@ function toggleFullscreen(opts = {}) {
     if (carousel.parentElement === viewport) {
       viewport.removeChild(carousel);
       previewContainer.appendChild(carousel);
-      scrollToPhoto(carousel, selectedPhotoId, 'auto');
+      scrollToPhoto(carousel, photoId, 'auto');
     }
   } else {
     overlay.classList.add('visible');
@@ -176,7 +196,7 @@ function toggleFullscreen(opts = {}) {
     if (carousel.parentElement === previewContainer) {
       previewContainer.removeChild(carousel);
       viewport.appendChild(carousel);
-      scrollToPhoto(carousel, selectedPhotoId, 'auto');
+      scrollToPhoto(carousel, photoId, 'auto');
     }
   }
 
@@ -314,13 +334,13 @@ async function init() {
   function applyHash() {
     const { id, fullscreen } = parseHash();
     if (id != null && photos.some((p) => p.id === id)) {
-      selectPhoto(id, { skipHashUpdate: true });
+      selectPhoto(id, { skipHashUpdate: true, instant: true });
       const overlay = document.getElementById('fullscreenOverlay');
       const isOpen = overlay.classList.contains('visible');
       if (fullscreen !== isOpen) toggleFullscreen({ skipHashUpdate: true });
       updateHash();
     } else if (photos.length > 0 && selectedPhotoId == null) {
-      selectPhoto(photos[0].id, { skipHashUpdate: true });
+      selectPhoto(photos[0].id, { skipHashUpdate: true, instant: true });
     }
   }
 
