@@ -30,13 +30,29 @@ function selectPhoto(photoId) {
   preview.appendChild(img);
 
   if (photo.latitude != null && photo.longitude != null && map) {
-    map.setView([photo.latitude, photo.longitude], 14);
+    const zoom = getZoomForPhoto(photo);
+    map.setView([photo.latitude, photo.longitude], zoom);
   }
 
   updateMarkerStyles();
 
   const cell = document.querySelector(`[data-photo-id="${photoId}"]`);
   if (cell) cell.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+}
+
+function getZoomForPhoto(photo) {
+  const photosWithCoords = photos.filter((p) => p.latitude != null && p.longitude != null);
+  const radius = 0.003;
+  const nearby = photosWithCoords.filter(
+    (p) =>
+      p.id !== photo.id &&
+      Math.abs(p.latitude - photo.latitude) < radius &&
+      Math.abs(p.longitude - photo.longitude) < radius
+  );
+  if (nearby.length >= 15) return 19;
+  if (nearby.length >= 8) return 18;
+  if (nearby.length >= 4) return 17;
+  return 14;
 }
 
 function updateMarkerStyles() {

@@ -105,6 +105,7 @@ body {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
   overflow: hidden;
   background: #a8d4ff;
+  transition: transform 0.25s ease-in-out;
 }
 
 .map-marker-pin img {
@@ -120,6 +121,7 @@ body {
 .map-marker-selected .map-marker-pin {
   border-color: #1a4d8c;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  transform: scale(2.5);
 }
 
 .map-marker-selected {
