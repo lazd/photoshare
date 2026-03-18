@@ -28,6 +28,14 @@ npm run build
 
 Outputs a static site to `dist/` with all photos, metadata, and assets. Serve it with any static host (e.g. `npx serve dist` or deploy to GitHub Pages, Netlify, etc.).
 
+## Deploy to GitHub Pages
+
+```bash
+npm run deploy
+```
+
+Builds the static site and pushes it to the `gh-pages` branch. Enable GitHub Pages in your repo settings (Settings → Pages → Source: Deploy from a branch → gh-pages).
+
 ## Features
 
 - **Auto-conversion**: Photos in `photos/` are converted to JPG and stored in `converted/`
