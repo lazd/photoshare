@@ -108,6 +108,7 @@ header h1 {
 .map-container {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   position: relative;
 }
 
@@ -117,27 +118,6 @@ header h1 {
   background: var(--bg-tertiary);
 }
 
-.map-placeholder {
+.map-container .leaflet-attribution-flag {
   display: none;
-  position: absolute;
-  inset: 0;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-}
-
-.map-placeholder.visible {
-  display: flex;
-}
-
-.map-placeholder code {
-  background: var(--bg-primary);
-  padding: 0.2em 0.4em;
-  border-radius: 4px;
-  font-size: 0.9em;
-}
-
-.gm-style {
-  filter: invert(0.9) hue-rotate(180deg);
 }

@@ -6,25 +6,6 @@ let photos = [];
 let map = null;
 let markers = [];
 
-async function loadGoogleMaps(apiKey) {
-  if (!apiKey) {
-    document.getElementById('mapPlaceholder').classList.add('visible');
-    return Promise.resolve();
-  }
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMap`;
-    script.async = true;
-    script.defer = true;
-    script.onerror = () => reject(new Error('Failed to load Google Maps'));
-    window.initMap = () => {
-      resolve();
-      setupMap();
-    };
-    document.head.appendChild(script);
-  });
-}
-
 async function fetchPhotos() {
   const res = await fetch(PHOTOS_ENDPOINT);
   if (!res.ok) throw new Error('Failed to fetch photos');
@@ -66,47 +47,28 @@ function highlightPhoto(photoId) {
 
 function panToPhoto(photo) {
   if (!map) return;
-  map.panTo({ lat: photo.latitude, lng: photo.longitude });
-  map.setZoom(14);
+  map.setView([photo.latitude, photo.longitude], 14);
 }
 
 function setupMap() {
   const photosWithCoords = photos.filter((p) => p.latitude != null && p.longitude != null);
 
   const center = photosWithCoords.length
-    ? { lat: photosWithCoords[0].latitude, lng: photosWithCoords[0].longitude }
-    : { lat: 37.7749, lng: -122.4194 };
+    ? [photosWithCoords[0].latitude, photosWithCoords[0].longitude]
+    : [37.7749, -122.4194];
 
-  map = new google.maps.Map(document.getElementById('map'), {
-    center,
-    zoom: 3,
-    styles: [
-      { elementType: 'geometry', stylers: [{ color: '#1d2c4d' }] },
-      { elementType: 'labels.text.fill', stylers: [{ color: '#8ec3b9' }] },
-      { elementType: 'labels.text.stroke', stylers: [{ color: '#1a3646' }] },
-      { featureType: 'administrative.country', elementType: 'geometry.stroke', stylers: [{ color: '#4b6878' }] },
-      { featureType: 'administrative.land_parcel', elementType: 'labels.text.fill', stylers: [{ color: '#64779e' }] },
-      { featureType: 'administrative.province', elementType: 'geometry.stroke', stylers: [{ color: '#4b6878' }] },
-      { featureType: 'landscape.man_made', elementType: 'geometry.stroke', stylers: [{ color: '#334e87' }] },
-      { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#023e58' }] },
-      { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#283d6a' }] },
-      { featureType: 'poi.park', elementType: 'geometry.fill', stylers: [{ color: '#023e58' }] },
-      { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#304a7d' }] },
-      { featureType: 'road', elementType: 'text.fill', stylers: [{ color: '#98a5be' }] },
-      { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#2c6675' }] },
-      { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
-      { featureType: 'water', elementType: 'text.fill', stylers: [{ color: '#4e6d70' }] }
-    ]
-  });
+  map = L.map('map').setView(center, 3);
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 20
+  }).addTo(map);
 
   markers = photosWithCoords.map((photo) => {
-    const marker = new google.maps.Marker({
-      position: { lat: photo.latitude, lng: photo.longitude },
-      map,
-      title: `Photo ${photo.id}`
-    });
+    const marker = L.marker([photo.latitude, photo.longitude]).addTo(map);
 
-    marker.addListener('click', () => {
+    marker.on('click', () => {
       highlightPhoto(photo.id);
       const cell = document.querySelector(`[data-photo-id="${photo.id}"]`);
       if (cell) cell.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -116,24 +78,15 @@ function setupMap() {
   });
 
   if (photosWithCoords.length > 1) {
-    const bounds = new google.maps.LatLngBounds();
-    photosWithCoords.forEach((p) => bounds.extend({ lat: p.latitude, lng: p.longitude }));
-    map.fitBounds(bounds, { padding: 40 });
+    const bounds = L.latLngBounds(photosWithCoords.map((p) => [p.latitude, p.longitude]));
+    map.fitBounds(bounds, { padding: [40, 40] });
   }
 }
 
 async function init() {
-  const [config, photosData] = await Promise.all([
-    fetch(`${API_BASE}/api/config`).then((r) => r.json()),
-    fetchPhotos()
-  ]);
-  photos = photosData;
+  photos = await fetchPhotos();
   renderPhotoGrid();
-  if (config.googleMapsApiKey) {
-    await loadGoogleMaps(config.googleMapsApiKey);
-  } else {
-    document.getElementById('mapPlaceholder').classList.add('visible');
-  }
+  setupMap();
 }
 
 init().catch((err) => {

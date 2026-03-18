@@ -22,12 +22,6 @@ app.get('/', async (req, res) => {
 });
 app.use('/converted', express.static(getConvertedDir()));
 
-app.get('/api/config', (req, res) => {
-  res.json({
-    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || ''
-  });
-});
-
 app.get('/api/photos', (req, res) => {
   try {
     const photos = getAllPhotos();
