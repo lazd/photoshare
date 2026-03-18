@@ -6,6 +6,7 @@ let photos = [];
 let map = null;
 let markers = [];
 let selectedPhotoId = null;
+let isTogglingFullscreen = false;
 
 function parseHash() {
   const params = new URLSearchParams(location.hash.slice(1));
@@ -38,7 +39,7 @@ async function fetchPhotos() {
 
 function getZoomForPhoto(photo) {
   const photosWithCoords = photos.filter((p) => p.latitude != null && p.longitude != null);
-  const radius = 0.006;
+  const radius = 0.010;
   const nearby = photosWithCoords.filter(
     (p) =>
       p.id !== photo.id &&
@@ -57,6 +58,9 @@ function updateMarkerStyles() {
   markers.forEach((marker) => {
     const el = marker._icon;
     if (el) {
+      const idx = photos.findIndex((p) => p.id === marker.photoId);
+      const baseZ = idx >= 0 ? idx + 1 : 1;
+      el.style.zIndex = marker.photoId === selectedPhotoId ? 1000 : String(baseZ);
       el.classList.toggle('map-marker-selected', marker.photoId === selectedPhotoId);
     }
   });
@@ -172,6 +176,7 @@ function toggleFullscreen(opts = {}) {
   const photoId = getPhotoAtScrollPosition(carousel) ?? selectedPhotoId;
   if (!photoId) return;
 
+  isTogglingFullscreen = true;
   selectedPhotoId = photoId;
   document.querySelectorAll('.timeline-cell').forEach((el) => {
     el.classList.toggle('selected', el.dataset.photoId === String(photoId));
@@ -184,7 +189,6 @@ function toggleFullscreen(opts = {}) {
   if (overlay.classList.contains('visible')) {
     overlay.classList.remove('visible');
     overlay.setAttribute('aria-hidden', 'true');
-    document.body.style.overflow = '';
     if (carousel.parentElement === viewport) {
       viewport.removeChild(carousel);
       previewContainer.appendChild(carousel);
@@ -193,7 +197,6 @@ function toggleFullscreen(opts = {}) {
   } else {
     overlay.classList.add('visible');
     overlay.setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
     if (carousel.parentElement === previewContainer) {
       previewContainer.removeChild(carousel);
       viewport.appendChild(carousel);
@@ -205,6 +208,7 @@ function toggleFullscreen(opts = {}) {
     carousel.style.scrollBehavior = prevScrollBehavior || '';
   });
   if (!opts.skipHashUpdate) updateHash();
+  setTimeout(() => { isTogglingFullscreen = false; }, 100);
 }
 
 function navigatePhoto(direction) {
@@ -253,7 +257,10 @@ function setupMap() {
     maxZoom: 19
   }).addTo(map);
 
-  markers = photosWithCoords.map((photo) => {
+  const sortedByTimeline = [...photosWithCoords].sort(
+    (a, b) => photos.findIndex((p) => p.id === a.id) - photos.findIndex((p) => p.id === b.id)
+  );
+  markers = sortedByTimeline.map((photo) => {
     const photoUrl = `${CONVERTED_BASE}/${photo.converted_filename}`;
     const marker = L.marker([photo.latitude, photo.longitude], {
       icon: L.divIcon({
@@ -313,6 +320,9 @@ function setupCarouselScrollSync(scrollEl, opts = {}) {
   function flyMapToPhoto(photoId) {
     const photo = photos.find((p) => p.id === photoId);
     if (!photo || photo.latitude == null || photo.longitude == null || !map) return;
+    const latlng = L.latLng(photo.latitude, photo.longitude);
+    const paddedBounds = map.getBounds().pad(-0.10);
+    if (paddedBounds.contains(latlng)) return;
     const zoom = getZoomForPhoto(photo);
     const center = map.getCenter();
     const dist = Math.hypot(photo.latitude - center.lat, photo.longitude - center.lng);
@@ -324,19 +334,14 @@ function setupCarouselScrollSync(scrollEl, opts = {}) {
     const photoId = getPhotoAtScrollPosition(scrollEl);
     syncTimelineToCarousel(scrollEl);
     syncSelection(photoId, false);
-    if (photoId != null) {
-      selectedPhotoId = photoId;
-      updateMarkerStyles();
-    }
   }
 
   function onCarouselScrollEnd() {
+    if (isTogglingFullscreen) return;
     const photoId = getPhotoAtScrollPosition(scrollEl);
     syncTimelineToCarousel(scrollEl);
     syncSelection(photoId, false);
     if (photoId != null) {
-      selectedPhotoId = photoId;
-      updateMarkerStyles();
       flyMapToPhoto(photoId);
       updateHash();
     }

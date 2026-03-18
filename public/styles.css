@@ -226,7 +226,7 @@ body {
 }
 
 .map-marker-selected {
-  z-index: 1000 !important;
+  z-index: 1000 !important; /* above base order when selected */
 }
 
 .timeline {
