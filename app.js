@@ -4,6 +4,7 @@ let photos = [];
 let map = null;
 let markers = [];
 let selectedPhotoId = null;
+let isTogglingFullscreen = false;
 
 function parseHash() {
   const params = new URLSearchParams(location.hash.slice(1));
@@ -36,7 +37,7 @@ async function fetchPhotos() {
 
 function getZoomForPhoto(photo) {
   const photosWithCoords = photos.filter((p) => p.latitude != null && p.longitude != null);
-  const radius = 0.006;
+  const radius = 0.010;
   const nearby = photosWithCoords.filter(
     (p) =>
       p.id !== photo.id &&
@@ -53,8 +54,11 @@ function getZoomForPhoto(photo) {
 
 function updateMarkerStyles() {
   markers.forEach((marker) => {
-    const el = marker._icon;
+    const el = marker.getElement();
     if (el) {
+      const idx = photos.findIndex((p) => p.id === marker.photoId);
+      const baseZ = idx >= 0 ? idx + 1 : 1;
+      el.style.zIndex = marker.photoId === selectedPhotoId ? 1000 : String(baseZ);
       el.classList.toggle('map-marker-selected', marker.photoId === selectedPhotoId);
     }
   });
@@ -139,12 +143,14 @@ function selectPhoto(photoId, opts = {}) {
   if (photo.latitude != null && photo.longitude != null && map) {
     const zoom = getZoomForPhoto(photo);
     const center = map.getCenter();
-    const dist = Math.hypot(
-      photo.latitude - center.lat,
-      photo.longitude - center.lng
-    );
+    const dist = Math.hypot(photo.latitude - center.lat, photo.longitude - center.lng);
     const duration = Math.min(1.5, Math.max(0.25, 0.25 + (dist / 0.1) * 1.25));
-    map.flyTo([photo.latitude, photo.longitude], zoom, { duration });
+    map.flyTo({
+      center: [photo.longitude, photo.latitude],
+      zoom,
+      duration: duration * 1000,
+      essential: true
+    });
   }
 
   updateMarkerStyles();
@@ -170,6 +176,7 @@ function toggleFullscreen(opts = {}) {
   const photoId = getPhotoAtScrollPosition(carousel) ?? selectedPhotoId;
   if (!photoId) return;
 
+  isTogglingFullscreen = true;
   selectedPhotoId = photoId;
   document.querySelectorAll('.timeline-cell').forEach((el) => {
     el.classList.toggle('selected', el.dataset.photoId === String(photoId));
@@ -182,7 +189,6 @@ function toggleFullscreen(opts = {}) {
   if (overlay.classList.contains('visible')) {
     overlay.classList.remove('visible');
     overlay.setAttribute('aria-hidden', 'true');
-    document.body.style.overflow = '';
     if (carousel.parentElement === viewport) {
       viewport.removeChild(carousel);
       previewContainer.appendChild(carousel);
@@ -191,7 +197,6 @@ function toggleFullscreen(opts = {}) {
   } else {
     overlay.classList.add('visible');
     overlay.setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
     if (carousel.parentElement === previewContainer) {
       previewContainer.removeChild(carousel);
       viewport.appendChild(carousel);
@@ -203,6 +208,7 @@ function toggleFullscreen(opts = {}) {
     carousel.style.scrollBehavior = prevScrollBehavior || '';
   });
   if (!opts.skipHashUpdate) updateHash();
+  setTimeout(() => { isTogglingFullscreen = false; }, 100);
 }
 
 function navigatePhoto(direction) {
@@ -240,42 +246,44 @@ function setupMap() {
   const photosWithCoords = photos.filter((p) => p.latitude != null && p.longitude != null);
 
   const center = photosWithCoords.length
-    ? [photosWithCoords[0].latitude, photosWithCoords[0].longitude]
-    : [37.7749, -122.4194];
+    ? [photosWithCoords[0].longitude, photosWithCoords[0].latitude]
+    : [-122.4194, 37.7749];
 
-  map = L.map('map').setView(center, 3);
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    subdomains: 'abc',
-    maxZoom: 19
-  }).addTo(map);
-
-  markers = photosWithCoords.map((photo) => {
-    const photoUrl = `${CONVERTED_BASE}/${photo.converted_filename}`;
-    const marker = L.marker([photo.latitude, photo.longitude], {
-      icon: L.divIcon({
-        className: 'map-marker',
-        html: `<div class="map-marker-pin"><img src="${photoUrl}" alt=""></div>`,
-        iconSize: [40, 40],
-        iconAnchor: [20, 40]
-      })
-    }).addTo(map);
-
-    marker.photoId = photo.id;
-    marker.on('click', () => selectPhoto(photo.id));
-
-    return marker;
+  map = new maplibregl.Map({
+    container: 'map',
+    style: 'https://tiles.openfreemap.org/styles/liberty',
+    center,
+    zoom: 3
   });
 
-  updateMarkerStyles();
+  map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-  if (photosWithCoords.length > 1) {
-    const bounds = L.latLngBounds(photosWithCoords.map((p) => [p.latitude, p.longitude]));
-    map.fitBounds(bounds, { padding: [40, 40] });
-  }
+  const sortedByTimeline = [...photosWithCoords].sort(
+    (a, b) => photos.findIndex((p) => p.id === a.id) - photos.findIndex((p) => p.id === b.id)
+  );
 
-  requestAnimationFrame(() => map.invalidateSize());
+  map.on('load', () => {
+    map.resize();
+    markers = sortedByTimeline.map((photo) => {
+      const photoUrl = `${CONVERTED_BASE}/${photo.converted_filename}`;
+      const el = document.createElement('div');
+      el.className = 'map-marker';
+      el.innerHTML = `<div class="map-marker-pin"><img src="${photoUrl}" alt=""></div>`;
+      const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+        .setLngLat([photo.longitude, photo.latitude])
+        .addTo(map);
+      marker.photoId = photo.id;
+      marker.getElement().addEventListener('click', () => selectPhoto(photo.id));
+      return marker;
+    });
+    updateMarkerStyles();
+    if (photosWithCoords.length > 1) {
+      const bounds = new maplibregl.LngLatBounds();
+      photosWithCoords.forEach((p) => bounds.extend([p.longitude, p.latitude]));
+      map.fitBounds(bounds, { padding: 40 });
+    }
+  });
+  window.addEventListener('resize', () => map?.resize());
 }
 
 const TIMELINE_CELL_WIDTH = 80;
@@ -311,30 +319,39 @@ function setupCarouselScrollSync(scrollEl, opts = {}) {
   function flyMapToPhoto(photoId) {
     const photo = photos.find((p) => p.id === photoId);
     if (!photo || photo.latitude == null || photo.longitude == null || !map) return;
+    const lnglat = [photo.longitude, photo.latitude];
+    const bounds = map.getBounds();
+    const center = bounds.getCenter();
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+    const paddedSw = [center.lng + (sw.lng - center.lng) * 0.9, center.lat + (sw.lat - center.lat) * 0.9];
+    const paddedNe = [center.lng + (ne.lng - center.lng) * 0.9, center.lat + (ne.lat - center.lat) * 0.9];
+    const paddedBounds = new maplibregl.LngLatBounds(paddedSw, paddedNe);
+    if (paddedBounds.contains(lnglat)) return;
     const zoom = getZoomForPhoto(photo);
-    const center = map.getCenter();
-    const dist = Math.hypot(photo.latitude - center.lat, photo.longitude - center.lng);
+    const mapCenter = map.getCenter();
+    const dist = Math.hypot(photo.latitude - mapCenter.lat, photo.longitude - mapCenter.lng);
     const duration = Math.min(1.5, Math.max(0.25, 0.25 + (dist / 0.1) * 1.25));
-    map.flyTo([photo.latitude, photo.longitude], zoom, { duration });
+    map.flyTo({
+      center: lnglat,
+      zoom,
+      duration: duration * 1000,
+      essential: true
+    });
   }
 
   function onCarouselScroll() {
     const photoId = getPhotoAtScrollPosition(scrollEl);
     syncTimelineToCarousel(scrollEl);
     syncSelection(photoId, false);
-    if (photoId != null) {
-      selectedPhotoId = photoId;
-      updateMarkerStyles();
-    }
   }
 
   function onCarouselScrollEnd() {
+    if (isTogglingFullscreen) return;
     const photoId = getPhotoAtScrollPosition(scrollEl);
     syncTimelineToCarousel(scrollEl);
     syncSelection(photoId, false);
     if (photoId != null) {
-      selectedPhotoId = photoId;
-      updateMarkerStyles();
       flyMapToPhoto(photoId);
       updateHash();
     }

@@ -188,13 +188,10 @@ body {
   background: var(--bg-tertiary);
 }
 
-.map-container .leaflet-attribution-flag {
-  display: none;
-}
-
 .map-marker {
   background: none;
   border: none;
+  cursor: pointer;
 }
 
 .map-marker-pin {
@@ -226,7 +223,7 @@ body {
 }
 
 .map-marker-selected {
-  z-index: 1000 !important;
+  z-index: 1000 !important; /* above base order when selected */
 }
 
 .timeline {
