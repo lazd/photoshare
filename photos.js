@@ -1,5 +1,5 @@
 import { readdir, readFile, mkdir, writeFile } from 'fs/promises';
-import { join, extname } from 'path';
+import { join, extname, resolve } from 'path';
 import exifr from 'exifr';
 import sharp from 'sharp';
 import heicConvert from 'heic-convert';
@@ -28,22 +28,23 @@ function getConvertedFilename(originalPath) {
 }
 
 export async function processPhoto(originalPath) {
-  const ext = extname(originalPath).toLowerCase();
+  const resolvedPath = resolve(originalPath);
+  const ext = extname(resolvedPath).toLowerCase();
   if (!IMAGE_EXTENSIONS.has(ext)) return null;
 
   await ensureDir(CONVERTED_DIR);
-  const convertedFilename = getConvertedFilename(originalPath);
+  const convertedFilename = getConvertedFilename(resolvedPath);
   const outputPath = join(CONVERTED_DIR, convertedFilename);
 
   let metadata = {};
   try {
-    metadata = await exifr.parse(originalPath, { pick: ['GPSLatitude', 'GPSLongitude', 'DateTimeOriginal', 'CreateDate'] })
+    metadata = await exifr.parse(resolvedPath, { pick: ['GPSLatitude', 'GPSLongitude', 'DateTimeOriginal', 'CreateDate'] })
       .catch(() => ({}));
   } catch (_) {}
 
   let gps = null;
   try {
-    gps = await exifr.gps(originalPath);
+    gps = await exifr.gps(resolvedPath);
   } catch (_) {}
 
   const latitude = gps?.latitude ?? metadata?.GPSLatitude ?? null;
@@ -53,7 +54,7 @@ export async function processPhoto(originalPath) {
   const isHeic = ['.heic', '.heif'].includes(ext);
   try {
     if (isHeic) {
-      const inputBuffer = await readFile(originalPath);
+      const inputBuffer = await readFile(resolvedPath);
       const outputBuffer = await heicConvert({
         buffer: inputBuffer,
         format: 'JPEG',
@@ -61,18 +62,18 @@ export async function processPhoto(originalPath) {
       });
       await writeFile(outputPath, outputBuffer);
     } else {
-      await sharp(originalPath)
+      await sharp(resolvedPath)
         .rotate()
         .jpeg({ quality: 90 })
         .toFile(outputPath);
     }
   } catch (err) {
-    console.error(`Failed to convert ${originalPath}:`, err.message);
+    console.error(`Failed to convert ${resolvedPath}:`, err.message);
     return null;
   }
 
   const photo = {
-    original_path: originalPath,
+    original_path: resolvedPath,
     converted_filename: convertedFilename,
     latitude: latitude ?? null,
     longitude: longitude ?? null,
@@ -94,7 +95,7 @@ export async function processAllPhotos() {
 
   let processed = 0;
   for (const filePath of files) {
-    if (photoExistsByPath(filePath)) continue;
+    if (photoExistsByPath(resolve(filePath))) continue;
     const result = await processPhoto(filePath);
     if (result) processed++;
   }

@@ -95,12 +95,13 @@ function setupMap() {
   }).addTo(map);
 
   markers = photosWithCoords.map((photo) => {
+    const photoUrl = `${CONVERTED_BASE}/${photo.converted_filename}`;
     const marker = L.marker([photo.latitude, photo.longitude], {
       icon: L.divIcon({
         className: 'map-marker',
-        html: '<div class="map-marker-pin"></div>',
-        iconSize: [24, 24],
-        iconAnchor: [12, 24]
+        html: `<div class="map-marker-pin"><img src="${photoUrl}" alt=""></div>`,
+        iconSize: [40, 40],
+        iconAnchor: [20, 40]
       })
     }).addTo(map);
 
@@ -141,6 +142,7 @@ async function init() {
       navigatePhoto('next');
     }
   });
+
 }
 
 init().catch((err) => {

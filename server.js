@@ -1,9 +1,9 @@
 import express from 'express';
-import { join, dirname, resolve } from 'path';
+import { join, dirname, resolve, basename } from 'path';
 import { fileURLToPath } from 'url';
-import { readFile } from 'fs/promises';
+import { readFile, unlink, access } from 'fs/promises';
 import chokidar from 'chokidar';
-import { getAllPhotos } from './db.js';
+import { getAllPhotos, getPhotoByPath, getPhotoByFilename, deletePhotoByPath } from './db.js';
 import { processPhoto, processAllPhotos, getPhotosDir, getConvertedDir } from './photos.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -39,8 +39,32 @@ app.get('/api/photos', (req, res) => {
   }
 });
 
+async function syncDeletedPhotos() {
+  const photos = getAllPhotos();
+  let removed = 0;
+  for (const photo of photos) {
+    try {
+      await access(photo.original_path);
+    } catch {
+      const convertedPath = join(getConvertedDir(), photo.converted_filename);
+      try {
+        await unlink(convertedPath);
+      } catch (err) {
+        if (err.code !== 'ENOENT') console.error('Error deleting converted file', convertedPath, err);
+      }
+      deletePhotoByPath(photo.original_path);
+      removed++;
+      console.log('Removed orphaned:', photo.converted_filename);
+    }
+  }
+  return removed;
+}
+
 async function start() {
   const photosDir = getPhotosDir();
+  console.log('Syncing deleted photos...');
+  const removed = await syncDeletedPhotos();
+  if (removed > 0) console.log(`Removed ${removed} orphaned photos.`);
   console.log('Processing existing photos...');
   const processed = await processAllPhotos();
   console.log(`Processed ${processed} new photos.`);
@@ -57,6 +81,31 @@ async function start() {
       if (result) console.log('Added:', result.converted_filename);
     } catch (err) {
       console.error('Error processing', filePath, err);
+    }
+  });
+
+  watcher.on('unlink', async (filePath) => {
+    try {
+      const resolvedPath = resolve(filePath);
+      let photo = getPhotoByPath(resolvedPath) ?? getPhotoByPath(filePath);
+      if (!photo) {
+        photo = getPhotoByFilename(basename(filePath));
+      }
+      if (photo) {
+        const convertedPath = join(getConvertedDir(), photo.converted_filename);
+        try {
+          await unlink(convertedPath);
+          console.log('Deleted converted:', photo.converted_filename);
+        } catch (err) {
+          if (err.code !== 'ENOENT') console.error('Error deleting converted file', convertedPath, err);
+        }
+        deletePhotoByPath(photo.original_path);
+        console.log('Removed from DB:', photo.original_path);
+      } else {
+        console.log('No DB entry found for deleted file:', filePath);
+      }
+    } catch (err) {
+      console.error('Error removing photo', filePath, err);
     }
   });
 

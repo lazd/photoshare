@@ -48,4 +48,19 @@ export function photoExistsByPath(originalPath) {
   return stmt.get(originalPath) != null;
 }
 
+export function getPhotoByPath(originalPath) {
+  const stmt = db.prepare('SELECT * FROM photos WHERE original_path = ?');
+  return stmt.get(originalPath);
+}
+
+export function getPhotoByFilename(filename) {
+  const stmt = db.prepare('SELECT * FROM photos WHERE original_path LIKE ?');
+  return stmt.get('%/' + filename);
+}
+
+export function deletePhotoByPath(originalPath) {
+  const stmt = db.prepare('DELETE FROM photos WHERE original_path = ?');
+  return stmt.run(originalPath);
+}
+
 export default db;
