@@ -38,7 +38,7 @@ async function fetchPhotos() {
 
 function getZoomForPhoto(photo) {
   const photosWithCoords = photos.filter((p) => p.latitude != null && p.longitude != null);
-  const radius = 0.003;
+  const radius = 0.006;
   const nearby = photosWithCoords.filter(
     (p) =>
       p.id !== photo.id &&
@@ -46,11 +46,11 @@ function getZoomForPhoto(photo) {
       Math.abs(p.longitude - photo.longitude) < radius
   );
   const isMobile = window.innerWidth <= 768;
-  const offset = isMobile ? -2 : 0;
-  if (nearby.length >= 15) return 19 + offset;
-  if (nearby.length >= 8) return 18 + offset;
-  if (nearby.length >= 4) return 17 + offset;
-  return 14 + offset;
+  const offset = isMobile ? -1 : 0;
+  if (nearby.length >= 15) return 16 + offset;
+  if (nearby.length >= 8) return 15 + offset;
+  if (nearby.length >= 4) return 14 + offset;
+  return 12 + offset;
 }
 
 function updateMarkerStyles() {
@@ -324,11 +324,12 @@ function setupCarouselScrollSync(scrollEl, opts = {}) {
   function onCarouselScrollEnd() {
     const photoId = getPhotoAtScrollPosition(scrollEl);
     syncTimelineToCarousel(scrollEl);
-    syncSelection(photoId, true);
+    syncSelection(photoId, false);
     if (photoId != null) {
       selectedPhotoId = photoId;
       updateMarkerStyles();
       flyMapToPhoto(photoId);
+      updateHash();
     }
   }
 
@@ -364,7 +365,7 @@ async function init() {
   function applyHash() {
     const { id, fullscreen } = parseHash();
     if (id != null && photos.some((p) => p.id === id)) {
-      selectPhoto(id, { skipHashUpdate: true, instant: true });
+      if (id !== selectedPhotoId) selectPhoto(id, { skipHashUpdate: true, instant: true });
       const overlay = document.getElementById('fullscreenOverlay');
       const isOpen = overlay.classList.contains('visible');
       if (fullscreen !== isOpen) toggleFullscreen({ skipHashUpdate: true });
