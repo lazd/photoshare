@@ -62,20 +62,51 @@ body {
 .photo-preview-inner {
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  position: relative;
 }
 
-.photo-preview-inner:has(img) {
+.photo-preview-inner:has(.carousel-viewport) {
   cursor: pointer;
 }
 
-.photo-preview-inner img {
+.carousel-viewport {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.carousel-track {
+  display: flex;
+  height: 100%;
+  width: 300%;
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: transform;
+}
+
+.carousel-track.dragging {
+  transition: none;
+}
+
+.carousel-slide {
+  flex: 0 0 33.333%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.carousel-slide img {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+  display: block;
 }
 
 .photo-placeholder {
@@ -107,18 +138,17 @@ body {
   pointer-events: auto;
 }
 
-.fullscreen-overlay .fullscreen-image {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
-  object-fit: contain;
-  transform: scale(0.97);
-  transition: transform 0.2s ease-out;
+.fullscreen-overlay .carousel-viewport {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.fullscreen-overlay.visible .fullscreen-image {
-  transform: scale(1);
+.fullscreen-overlay .carousel-slide img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 .map-container {
