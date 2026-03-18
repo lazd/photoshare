@@ -301,13 +301,35 @@ function setupCarouselScrollSync(scrollEl, opts = {}) {
     if (opts.onSync && typeof opts.onSync === 'function') opts.onSync(photoId);
   }
 
+  function flyMapToPhoto(photoId) {
+    const photo = photos.find((p) => p.id === photoId);
+    if (!photo || photo.latitude == null || photo.longitude == null || !map) return;
+    const zoom = getZoomForPhoto(photo);
+    const center = map.getCenter();
+    const dist = Math.hypot(photo.latitude - center.lat, photo.longitude - center.lng);
+    const duration = Math.min(1.5, Math.max(0.25, 0.25 + (dist / 0.1) * 1.25));
+    map.flyTo([photo.latitude, photo.longitude], zoom, { duration });
+  }
+
   function onCarouselScroll() {
+    const photoId = getPhotoAtScrollPosition(scrollEl);
     syncTimelineToCarousel(scrollEl);
-    syncSelection(getPhotoAtScrollPosition(scrollEl), false);
+    syncSelection(photoId, false);
+    if (photoId != null) {
+      selectedPhotoId = photoId;
+      updateMarkerStyles();
+    }
   }
 
   function onCarouselScrollEnd() {
-    syncSelection(getPhotoAtScrollPosition(scrollEl), true);
+    const photoId = getPhotoAtScrollPosition(scrollEl);
+    syncTimelineToCarousel(scrollEl);
+    syncSelection(photoId, true);
+    if (photoId != null) {
+      selectedPhotoId = photoId;
+      updateMarkerStyles();
+      flyMapToPhoto(photoId);
+    }
   }
 
   scrollEl.addEventListener('scroll', onCarouselScroll, { passive: true });
