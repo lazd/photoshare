@@ -7,13 +7,36 @@ let map = null;
 let markers = [];
 let selectedPhotoId = null;
 
+function parseHash() {
+  const params = new URLSearchParams(location.hash.slice(1));
+  const id = params.get('photo');
+  return {
+    id: id ? parseInt(id, 10) : null,
+    fullscreen: params.get('fullscreen') === 'true'
+  };
+}
+
+function updateHash() {
+  const overlay = document.getElementById('fullscreenOverlay');
+  const isFullscreen = overlay && overlay.classList.contains('visible');
+  const params = new URLSearchParams();
+  if (selectedPhotoId != null) {
+    params.set('photo', selectedPhotoId);
+    if (isFullscreen) params.set('fullscreen', 'true');
+  }
+  const newHash = params.toString() ? '#' + params.toString() : '';
+  if (location.hash !== newHash) {
+    location.hash = newHash;
+  }
+}
+
 async function fetchPhotos() {
   const res = await fetch(PHOTOS_ENDPOINT);
   if (!res.ok) throw new Error('Failed to fetch photos');
   return res.json();
 }
 
-function selectPhoto(photoId) {
+function selectPhoto(photoId, opts = {}) {
   selectedPhotoId = photoId;
   const photo = photos.find((p) => p.id === photoId);
   if (!photo) return;
@@ -50,9 +73,11 @@ function selectPhoto(photoId) {
 
   const cell = document.querySelector(`[data-photo-id="${photoId}"]`);
   if (cell) cell.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+
+  if (!opts.skipHashUpdate) updateHash();
 }
 
-function toggleFullscreen() {
+function toggleFullscreen(opts = {}) {
   const overlay = document.getElementById('fullscreenOverlay');
   const fullscreenImg = document.getElementById('fullscreenImage');
   const previewImg = document.querySelector('#photoPreview img');
@@ -69,6 +94,7 @@ function toggleFullscreen() {
     overlay.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
   }
+  if (!opts.skipHashUpdate) updateHash();
 }
 
 function getZoomForPhoto(photo) {
@@ -183,6 +209,20 @@ async function init() {
   if (photos.length === 0) {
     document.getElementById('photoPreview').innerHTML = '<p class="photo-placeholder">No photos yet</p>';
   }
+
+  function applyHash() {
+    const { id, fullscreen } = parseHash();
+    if (id != null && photos.some((p) => p.id === id)) {
+      selectPhoto(id, { skipHashUpdate: true });
+      const overlay = document.getElementById('fullscreenOverlay');
+      const isOpen = overlay.classList.contains('visible');
+      if (fullscreen !== isOpen) toggleFullscreen({ skipHashUpdate: true });
+      updateHash();
+    }
+  }
+
+  applyHash();
+  window.addEventListener('hashchange', applyHash);
 
   document.addEventListener('keydown', (e) => {
     if (e.target.closest('input, textarea, select')) return;
