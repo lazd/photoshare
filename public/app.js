@@ -31,7 +31,13 @@ function selectPhoto(photoId) {
 
   if (photo.latitude != null && photo.longitude != null && map) {
     const zoom = getZoomForPhoto(photo);
-    map.setView([photo.latitude, photo.longitude], zoom);
+    const center = map.getCenter();
+    const dist = Math.hypot(
+      photo.latitude - center.lat,
+      photo.longitude - center.lng
+    );
+    const duration = Math.min(1.5, Math.max(0.25, 0.25 + (dist / 0.1) * 1.25));
+    map.flyTo([photo.latitude, photo.longitude], zoom, { duration });
   }
 
   updateMarkerStyles();
