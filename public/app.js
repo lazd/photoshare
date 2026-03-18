@@ -29,6 +29,12 @@ function selectPhoto(photoId) {
   img.alt = `Photo ${photo.id}`;
   preview.appendChild(img);
 
+  const overlay = document.getElementById('fullscreenOverlay');
+  if (overlay.classList.contains('visible')) {
+    document.getElementById('fullscreenImage').src = img.src;
+    document.getElementById('fullscreenImage').alt = img.alt;
+  }
+
   if (photo.latitude != null && photo.longitude != null && map) {
     const zoom = getZoomForPhoto(photo);
     const center = map.getCenter();
@@ -46,6 +52,25 @@ function selectPhoto(photoId) {
   if (cell) cell.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
 }
 
+function toggleFullscreen() {
+  const overlay = document.getElementById('fullscreenOverlay');
+  const fullscreenImg = document.getElementById('fullscreenImage');
+  const previewImg = document.querySelector('#photoPreview img');
+  if (!previewImg) return;
+
+  if (overlay.classList.contains('visible')) {
+    overlay.classList.remove('visible');
+    overlay.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  } else {
+    fullscreenImg.src = previewImg.src;
+    fullscreenImg.alt = previewImg.alt;
+    overlay.classList.add('visible');
+    overlay.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+}
+
 function getZoomForPhoto(photo) {
   const photosWithCoords = photos.filter((p) => p.latitude != null && p.longitude != null);
   const radius = 0.003;
@@ -55,10 +80,12 @@ function getZoomForPhoto(photo) {
       Math.abs(p.latitude - photo.latitude) < radius &&
       Math.abs(p.longitude - photo.longitude) < radius
   );
-  if (nearby.length >= 15) return 19;
-  if (nearby.length >= 8) return 18;
-  if (nearby.length >= 4) return 17;
-  return 14;
+  const isMobile = window.innerWidth <= 768;
+  const offset = isMobile ? -2 : 0;
+  if (nearby.length >= 15) return 19 + offset;
+  if (nearby.length >= 8) return 18 + offset;
+  if (nearby.length >= 4) return 17 + offset;
+  return 14 + offset;
 }
 
 function updateMarkerStyles() {
@@ -144,6 +171,11 @@ function setupMap() {
 }
 
 async function init() {
+  // Prevent pinch-to-zoom on iOS (viewport meta is often ignored)
+  document.addEventListener('touchmove', (e) => {
+    if (e.touches.length > 1) e.preventDefault();
+  }, { passive: false });
+
   photos = await fetchPhotos();
   renderTimeline();
   setupMap();
@@ -154,6 +186,10 @@ async function init() {
 
   document.addEventListener('keydown', (e) => {
     if (e.target.closest('input, textarea, select')) return;
+    if (document.getElementById('fullscreenOverlay').classList.contains('visible') && e.key === 'Escape') {
+      toggleFullscreen();
+      return;
+    }
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
       navigatePhoto('prev');
@@ -175,6 +211,45 @@ async function init() {
     const touchEndX = e.changedTouches[0].clientX;
     const deltaX = touchStartX - touchEndX;
     if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
+      if (deltaX > 0) navigatePhoto('next');
+      else navigatePhoto('prev');
+    }
+  }, { passive: true });
+
+  document.querySelector('.photo-preview').addEventListener('click', (e) => {
+    if (e.target.closest('#photoPreview img')) {
+      e.preventDefault();
+      toggleFullscreen();
+    }
+  });
+
+  document.getElementById('fullscreenOverlay').addEventListener('click', () => {
+    if (document.getElementById('fullscreenOverlay').classList.contains('visible')) {
+      toggleFullscreen();
+    }
+  });
+
+  const overlay = document.getElementById('fullscreenOverlay');
+  let overlayTouchStartX = 0;
+  let overlayTouchStartY = 0;
+
+  overlay.addEventListener('touchstart', (e) => {
+    if (!overlay.classList.contains('visible')) return;
+    overlayTouchStartX = e.touches[0].clientX;
+    overlayTouchStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  overlay.addEventListener('touchend', (e) => {
+    if (!overlay.classList.contains('visible')) return;
+    const touch = e.changedTouches[0];
+    const deltaX = overlayTouchStartX - touch.clientX;
+    const deltaY = overlayTouchStartY - touch.clientY;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
+    if (absY > SWIPE_THRESHOLD && absY > absX) {
+      toggleFullscreen();
+    } else if (absX > SWIPE_THRESHOLD) {
       if (deltaX > 0) navigatePhoto('next');
       else navigatePhoto('prev');
     }

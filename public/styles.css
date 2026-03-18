@@ -16,12 +16,17 @@
   box-sizing: border-box;
 }
 
+html {
+  touch-action: manipulation;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -29,6 +34,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
 }
 
 .main-content {
@@ -62,6 +68,10 @@ body {
   overflow: hidden;
 }
 
+.photo-preview-inner:has(img) {
+  cursor: pointer;
+}
+
 .photo-preview-inner img {
   max-width: 100%;
   max-height: 100%;
@@ -72,6 +82,43 @@ body {
   color: var(--text-secondary);
   text-align: center;
   margin: 0;
+}
+
+.fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out, visibility 0.2s ease-out;
+  touch-action: none;
+  cursor: pointer;
+}
+
+.fullscreen-overlay.visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.fullscreen-overlay .fullscreen-image {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  transform: scale(0.97);
+  transition: transform 0.2s ease-out;
+}
+
+.fullscreen-overlay.visible .fullscreen-image {
+  transform: scale(1);
 }
 
 .map-container {
@@ -185,6 +232,10 @@ body {
 }
 
 @media (max-width: 768px) {
+  .layout {
+    flex-direction: column-reverse;
+  }
+
   .main-content {
     grid-template-columns: 1fr;
     grid-template-rows: 1.2fr 0.8fr;
@@ -192,6 +243,11 @@ body {
 
   .photo-preview {
     border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .timeline {
+    border-top: none;
     border-bottom: 1px solid var(--border);
   }
 }
