@@ -88,10 +88,6 @@ body {
   background: var(--bg-tertiary);
 }
 
-#map .leaflet-tile-pane {
-  filter: brightness(0.85) contrast(1.05);
-}
-
 .map-container .leaflet-attribution-flag {
   display: none;
 }
@@ -113,6 +109,10 @@ body {
 
 .map-marker-selected .map-marker-pin {
   background: #1a4d8c;
+}
+
+.map-marker-selected {
+  z-index: 1000 !important;
 }
 
 .timeline {
