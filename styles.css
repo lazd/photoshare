@@ -45,12 +45,30 @@ body {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: auto 1fr;
   grid-template-rows: 1fr;
   gap: var(--preview-padding);
   padding: var(--preview-padding);
   padding-bottom: 0;
   overflow: hidden;
+}
+
+/* Wide viewport: photo area sized for landscape (4:3) so landscape photos fill the space */
+@media (min-aspect-ratio: 4/3) {
+  .photo-preview {
+    aspect-ratio: 4/3;
+    height: 100%;
+    width: auto;
+  }
+}
+
+/* Narrow viewport: photo area sized for portrait (3:4) so portrait photos fill the space */
+@media (max-aspect-ratio: 4/3) {
+  .photo-preview {
+    aspect-ratio: 3/4;
+    height: 100%;
+    width: auto;
+  }
 }
 
 .photo-preview {
@@ -119,12 +137,21 @@ body {
   min-width: 0;
 }
 
+.snap-carousel-slide-img-wrap {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--border-radius-large);
+}
+
 .snap-carousel-slide img {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
   display: block;
-
   border-radius: var(--border-radius-large);
 }
 
@@ -316,16 +343,46 @@ body {
     gap: 0.5rem;
     padding: var(--preview-padding);
     padding-top: 0;
-    grid-template-rows: 1.2fr 0.8fr;
+    grid-template-rows: auto minmax(140px, 1fr);
   }
 
   .photo-preview {
     border-right: none;
     padding: 0;
+    width: 100%;
+    height: auto;
+    max-height: 100%;
+    aspect-ratio: 3/4;
+    border-radius: var(--border-radius-large);
+    overflow: hidden;
+  }
+
+  .snap-carousel-slide-img-wrap {
+    border-radius: var(--border-radius-large);
+  }
+
+  .snap-carousel-slide.photo-portrait img {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    object-fit: cover;
+  }
+
+  .snap-carousel-slide.photo-landscape img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
   }
 
   .timeline {
     border-top: none;
     padding: 0.5rem;
+  }
+
+  .map-marker-selected .map-marker-pin {
+    transform: scale(1.25);
   }
 }

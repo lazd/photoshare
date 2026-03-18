@@ -81,11 +81,19 @@ function buildSnapCarousel(containerEl) {
     const slide = document.createElement('div');
     slide.className = 'snap-carousel-slide';
     slide.dataset.photoId = photo.id;
+    const imgWrap = document.createElement('div');
+    imgWrap.className = 'snap-carousel-slide-img-wrap';
     const img = document.createElement('img');
     img.src = `${CONVERTED_BASE}/${photo.converted_filename}`;
     img.alt = `Photo ${photo.id}`;
     img.loading = 'lazy';
-    slide.appendChild(img);
+    img.addEventListener('load', () => {
+      const portrait = img.naturalHeight > img.naturalWidth;
+      slide.classList.toggle('photo-portrait', portrait);
+      slide.classList.toggle('photo-landscape', !portrait);
+    });
+    imgWrap.appendChild(img);
+    slide.appendChild(imgWrap);
     containerEl.appendChild(slide);
   });
   return containerEl;
@@ -352,10 +360,29 @@ function setupMap() {
       setMapStyle(btn.dataset.style);
     });
   });
-  map.addControl({ onAdd: () => layerControl, onRemove: () => layerControl.remove() }, 'top-right');
+  const layerControlObj = { onAdd: () => layerControl, onRemove: () => {} };
+  const updateLayerControlPosition = () => {
+    const pos = window.innerWidth <= 768 ? 'top-left' : 'top-right';
+    if (map.getContainer().contains(layerControl)) {
+      map.removeControl(layerControlObj);
+    }
+    map.addControl(layerControlObj, pos);
+  };
+  updateLayerControlPosition();
 
   setMapStyleFn = setMapStyle;
-  window.addEventListener('resize', () => map?.resize());
+  window.addEventListener('resize', () => {
+    map?.resize();
+    const newPos = window.innerWidth <= 768 ? 'top-left' : 'top-right';
+    const currentParent = layerControl.parentElement;
+    const inTopLeft = currentParent?.classList.contains('maplibregl-ctrl-top-left');
+    const wantTopLeft = newPos === 'top-left';
+    if (inTopLeft !== wantTopLeft) updateLayerControlPosition();
+  });
+  const mapContainer = document.querySelector('.map-container');
+  if (mapContainer) {
+    new ResizeObserver(() => map?.resize()).observe(mapContainer);
+  }
 }
 
 const TIMELINE_CELL_WIDTH = 80;
