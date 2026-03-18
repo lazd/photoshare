@@ -9,15 +9,19 @@
 </head>
 <body>
   <div class="layout">
-    <aside class="sidebar">
-      <header>
-        <h1>Photo Share</h1>
-      </header>
-      <div class="photo-grid" id="photoGrid"></div>
-    </aside>
-    <main class="map-container">
-      <div id="map"></div>
+    <main class="main-content">
+      <section class="photo-preview">
+        <div class="photo-preview-inner" id="photoPreview">
+          <p class="photo-placeholder">Select a photo</p>
+        </div>
+      </section>
+      <section class="map-container">
+        <div id="map"></div>
+      </section>
     </main>
+    <aside class="timeline">
+      <div class="timeline-track" id="timeline"></div>
+    </aside>
   </div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="app.js"></script>
