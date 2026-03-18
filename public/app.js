@@ -8,6 +8,8 @@ let markers = [];
 let selectedPhotoId = null;
 let isTogglingFullscreen = false;
 let isScrollingToSelection = false;
+let isScrollingTimeline = false;
+let recentlyScrolledTimeline = false;
 let currentMapStyle = 'map';
 let setMapStyleFn = null;
 
@@ -363,6 +365,7 @@ const TIMELINE_CELL_GAP = 8;
 const TIMELINE_PADDING = 8;
 
 function syncTimelineToCarousel(carousel) {
+  if (isScrollingTimeline || recentlyScrolledTimeline) return;
   const timeline = document.querySelector('.timeline');
   if (!timeline || !carousel || photos.length <= 1) return;
   const slideWidth = carousel.offsetWidth;
@@ -444,6 +447,22 @@ async function init() {
   photos = await fetchPhotos();
   renderTimeline();
   setupMap();
+
+  const timeline = document.querySelector('.timeline');
+  if (timeline) {
+    const startTimelineScroll = () => {
+      isScrollingTimeline = true;
+      recentlyScrolledTimeline = true;
+    };
+    const endTimelineScroll = () => {
+      isScrollingTimeline = false;
+      setTimeout(() => {
+        recentlyScrolledTimeline = false;
+      }, 3500)
+    };
+    timeline.addEventListener('touchstart', startTimelineScroll, { passive: true });
+    timeline.addEventListener('touchend', endTimelineScroll, { passive: true });
+  }
 
   if (photos.length === 0) {
     document.getElementById('photoPreview').innerHTML = '<p class="photo-placeholder">No photos yet</p>';
