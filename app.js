@@ -76,14 +76,21 @@ function buildSnapCarousel(containerEl) {
   return containerEl;
 }
 
+function getCarouselGap(scrollEl) {
+  if (!scrollEl) return 0;
+  const gap = getComputedStyle(scrollEl).gap;
+  return gap ? parseFloat(gap) || 0 : 0;
+}
+
 function scrollToPhoto(scrollEl, photoId, behavior = 'smooth') {
   if (!scrollEl || photos.length === 0) return;
   const slide = scrollEl.querySelector(`[data-photo-id="${photoId}"]`);
   if (!slide) return;
   const slideWidth = scrollEl.offsetWidth;
+  const gap = getCarouselGap(scrollEl);
   const idx = photos.findIndex((p) => p.id === photoId);
   if (idx === -1) return;
-  const targetScroll = idx * slideWidth;
+  const targetScroll = idx * (slideWidth + gap);
   if (behavior === 'auto') {
     const prev = scrollEl.style.scrollBehavior;
     scrollEl.style.scrollBehavior = 'auto';
@@ -99,8 +106,10 @@ function scrollToPhoto(scrollEl, photoId, behavior = 'smooth') {
 function getCarouselFractionalIndex(scrollEl) {
   if (!scrollEl || photos.length === 0) return 0;
   const slideWidth = scrollEl.offsetWidth;
-  if (slideWidth <= 0) return 0;
-  const idx = scrollEl.scrollLeft / slideWidth;
+  const gap = getCarouselGap(scrollEl);
+  const slotWidth = slideWidth + gap;
+  if (slotWidth <= 0) return 0;
+  const idx = scrollEl.scrollLeft / slotWidth;
   return Math.max(0, Math.min(photos.length - 1, idx));
 }
 
