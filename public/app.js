@@ -83,8 +83,6 @@ function buildSnapCarousel(containerEl) {
     const slide = document.createElement('div');
     slide.className = 'snap-carousel-slide';
     slide.dataset.photoId = photo.id;
-    const imgWrap = document.createElement('div');
-    imgWrap.className = 'snap-carousel-slide-img-wrap';
     const img = document.createElement('img');
     img.src = `${CONVERTED_BASE}/${photo.converted_filename}`;
     img.alt = `Photo ${photo.id}`;
@@ -94,8 +92,7 @@ function buildSnapCarousel(containerEl) {
       slide.classList.toggle('photo-portrait', portrait);
       slide.classList.toggle('photo-landscape', !portrait);
     });
-    imgWrap.appendChild(img);
-    slide.appendChild(imgWrap);
+    slide.appendChild(img);
     containerEl.appendChild(slide);
   });
   return containerEl;
