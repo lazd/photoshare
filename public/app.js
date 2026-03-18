@@ -98,26 +98,18 @@ function scrollToPhoto(scrollEl, photoId, behavior = 'smooth') {
   }
 }
 
+function getCarouselFractionalIndex(scrollEl) {
+  if (!scrollEl || photos.length === 0) return 0;
+  const slideWidth = scrollEl.offsetWidth;
+  if (slideWidth <= 0) return 0;
+  const idx = scrollEl.scrollLeft / slideWidth;
+  return Math.max(0, Math.min(photos.length - 1, idx));
+}
+
 function getPhotoAtScrollPosition(scrollEl) {
   if (!scrollEl || photos.length === 0) return null;
-  const rect = scrollEl.getBoundingClientRect();
-  const centerX = rect.left + rect.width / 2;
-  const slides = scrollEl.querySelectorAll('.snap-carousel-slide');
-  for (const slide of slides) {
-    const slideRect = slide.getBoundingClientRect();
-    if (slideRect.left <= centerX && centerX <= slideRect.right) {
-      return parseInt(slide.dataset.photoId, 10);
-    }
-  }
-  const first = slides[0];
-  const last = slides[slides.length - 1];
-  if (first && centerX < first.getBoundingClientRect().left + first.getBoundingClientRect().width / 2) {
-    return parseInt(first.dataset.photoId, 10);
-  }
-  if (last && centerX > last.getBoundingClientRect().left + last.getBoundingClientRect().width / 2) {
-    return parseInt(last.dataset.photoId, 10);
-  }
-  return null;
+  const idx = Math.round(getCarouselFractionalIndex(scrollEl));
+  return photos[idx]?.id ?? null;
 }
 
 function getCarousel() {
@@ -279,32 +271,48 @@ function setupMap() {
   requestAnimationFrame(() => map.invalidateSize());
 }
 
+const TIMELINE_CELL_WIDTH = 80;
+const TIMELINE_CELL_GAP = 8;
+const TIMELINE_PADDING = 8;
+
+function syncTimelineToCarousel(carousel) {
+  const timeline = document.querySelector('.timeline');
+  if (!timeline || !carousel || photos.length <= 1) return;
+  const slideWidth = carousel.offsetWidth;
+  if (slideWidth <= 0) return;
+  const f = getCarouselFractionalIndex(carousel);
+  const cellCenter = TIMELINE_PADDING + f * (TIMELINE_CELL_WIDTH + TIMELINE_CELL_GAP) + TIMELINE_CELL_WIDTH / 2;
+  const targetScroll = cellCenter - timeline.offsetWidth / 2;
+  const maxScroll = Math.max(0, timeline.scrollWidth - timeline.offsetWidth);
+  timeline.scrollLeft = Math.max(0, Math.min(maxScroll, targetScroll));
+}
+
 function setupCarouselScrollSync(scrollEl, opts = {}) {
   if (!scrollEl) return;
-  let scrollEndTimer = null;
 
-  function syncFromScroll() {
-    const photoId = getPhotoAtScrollPosition(scrollEl);
-    if (photoId != null && photoId !== selectedPhotoId) {
-      selectedPhotoId = photoId;
-      document.querySelectorAll('.timeline-cell').forEach((el) => {
-        el.classList.toggle('selected', el.dataset.photoId === String(photoId));
-      });
-      updateMarkerStyles();
-      updateHash();
-      if (opts.onSync && typeof opts.onSync === 'function') {
-        opts.onSync(photoId);
-      }
-    }
+  function syncSelection(photoId, updateHashNow = false) {
+    if (photoId == null || photoId === selectedPhotoId) return;
+    selectedPhotoId = photoId;
+    document.querySelectorAll('.timeline-cell').forEach((el) => {
+      el.classList.toggle('selected', el.dataset.photoId === String(photoId));
+    });
+    updateMarkerStyles();
+    if (updateHashNow) updateHash();
+    if (opts.onSync && typeof opts.onSync === 'function') opts.onSync(photoId);
   }
 
-  scrollEl.addEventListener('scroll', () => {
-    clearTimeout(scrollEndTimer);
-    scrollEndTimer = setTimeout(syncFromScroll, 100);
-  });
+  function onCarouselScroll() {
+    syncTimelineToCarousel(scrollEl);
+    syncSelection(getPhotoAtScrollPosition(scrollEl), false);
+  }
 
+  function onCarouselScrollEnd() {
+    syncSelection(getPhotoAtScrollPosition(scrollEl), true);
+  }
+
+  scrollEl.addEventListener('scroll', onCarouselScroll, { passive: true });
   if ('onscrollend' in scrollEl) {
-    scrollEl.addEventListener('scrollend', syncFromScroll);
+    scrollEl.addEventListener('scrollend', onCarouselScrollEnd);
   }
 }
 
