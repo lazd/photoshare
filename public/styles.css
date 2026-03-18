@@ -183,3 +183,15 @@ body {
   object-fit: cover;
   display: block;
 }
+
+@media (max-width: 768px) {
+  .main-content {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1.2fr 0.8fr;
+  }
+
+  .photo-preview {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}

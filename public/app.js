@@ -163,6 +163,23 @@ async function init() {
     }
   });
 
+  const photoPreview = document.querySelector('.photo-preview');
+  let touchStartX = 0;
+  const SWIPE_THRESHOLD = 50;
+
+  photoPreview.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+  }, { passive: true });
+
+  photoPreview.addEventListener('touchend', (e) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const deltaX = touchStartX - touchEndX;
+    if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
+      if (deltaX > 0) navigatePhoto('next');
+      else navigatePhoto('prev');
+    }
+  }, { passive: true });
+
 }
 
 init().catch((err) => {
