@@ -7,6 +7,7 @@ let map = null;
 let markers = [];
 let selectedPhotoId = null;
 let isTogglingFullscreen = false;
+let isScrollingToSelection = false;
 let currentMapStyle = 'map';
 let setMapStyleFn = null;
 
@@ -148,7 +149,11 @@ function selectPhoto(photoId, opts = {}) {
 
   const carousel = getCarousel();
   const scrollBehavior = opts.instant ? 'auto' : 'smooth';
-  if (carousel) scrollToPhoto(carousel, photoId, scrollBehavior);
+  if (carousel) {
+    isScrollingToSelection = true;
+    scrollToPhoto(carousel, photoId, scrollBehavior);
+    setTimeout(() => { isScrollingToSelection = false; }, 800);
+  }
 
   if (photo.latitude != null && photo.longitude != null && map) {
     const zoom = getZoomForPhoto(photo);
@@ -373,7 +378,7 @@ function setupCarouselScrollSync(scrollEl, opts = {}) {
   if (!scrollEl) return;
 
   function syncSelection(photoId, updateHashNow = false) {
-    if (photoId == null || photoId === selectedPhotoId) return;
+    if (isScrollingToSelection || (photoId == null || photoId === selectedPhotoId)) return;
     selectedPhotoId = photoId;
     document.querySelectorAll('.timeline-cell').forEach((el) => {
       el.classList.toggle('selected', el.dataset.photoId === String(photoId));
@@ -414,6 +419,7 @@ function setupCarouselScrollSync(scrollEl, opts = {}) {
   }
 
   function onCarouselScrollEnd() {
+    isScrollingToSelection = false;
     if (isTogglingFullscreen) return;
     const photoId = getPhotoAtScrollPosition(scrollEl);
     syncTimelineToCarousel(scrollEl);
