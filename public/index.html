@@ -23,8 +23,13 @@
   </button>
   <div class="menu-overlay" id="menuOverlay" aria-hidden="true"></div>
   <nav class="menu-drawer" id="menuDrawer" aria-label="Main menu">
+    <header class="menu-drawer-header">
+      <button type="button" class="menu-back-btn" id="menuBackToAlbums" aria-label="Back to albums">
+        <svg class="menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <h2 class="menu-drawer-title" id="menuAlbumName">Albums</h2>
+    </header>
     <ul class="menu-list">
-      <li><button type="button" class="menu-item" id="menuBackToAlbums">← Back to albums</button></li>
       <li>
         <label class="menu-item menu-item-checkbox">
           <input type="checkbox" id="menuToggleMap">

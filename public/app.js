@@ -78,6 +78,8 @@ function openMenu() {
   const mapTileSatellite = document.querySelector('input[name="mapTiles"][value="satellite"]');
   if (mapTileMap) mapTileMap.checked = currentMapStyle === 'map';
   if (mapTileSatellite) mapTileSatellite.checked = currentMapStyle === 'satellite';
+  const menuAlbumName = document.getElementById('menuAlbumName');
+  if (menuAlbumName) menuAlbumName.textContent = formatAlbumName(currentAlbum ?? '');
   document.getElementById('menuToggle')?.setAttribute('aria-expanded', 'true');
   document.getElementById('menuOverlay')?.classList.add('visible');
   document.getElementById('menuOverlay')?.setAttribute('aria-hidden', 'false');
