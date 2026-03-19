@@ -56,6 +56,15 @@ export function getAllPhotos(album = null) {
   return stmt.all();
 }
 
+export function getAllPhotosForStatic() {
+  const cols = 'id, original_path, converted_filename, thumbnail_filename, album, latitude, longitude, taken_at, created_at';
+  const stmt = db.prepare(`
+    SELECT ${cols} FROM photos
+    ORDER BY COALESCE(taken_at, created_at) ASC
+  `);
+  return stmt.all();
+}
+
 export function getAlbums() {
   const stmt = db.prepare(`
     SELECT COALESCE(album, '') as album, COUNT(*) as count

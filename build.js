@@ -1,7 +1,7 @@
 import { mkdir, copyFile, readFile, writeFile, rm } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { getAllPhotos } from './db.js';
+import { getAllPhotosForStatic, getAlbums, getAlbumIconThumbnails } from './db.js';
 import { processAllPhotos, getConvertedDir } from './photos.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -11,15 +11,28 @@ async function build() {
   console.log('Processing photos...');
   await processAllPhotos();
 
-  const photos = getAllPhotos().map((p) => ({
+  const photos = getAllPhotosForStatic().map((p) => ({
     id: p.id,
     converted_filename: p.converted_filename,
     thumbnail_filename: p.thumbnail_filename,
+    album: p.album ?? '',
     latitude: p.latitude,
     longitude: p.longitude,
     taken_at: p.taken_at,
     created_at: p.created_at
   }));
+
+  const albums = getAlbums().map((a) => {
+    const thumbs = getAlbumIconThumbnails(a.album, 4);
+    return {
+      album: a.album,
+      count: a.count,
+      thumbnails: thumbs.map((t) => ({
+        thumbnail: `images/${t.thumbnail_filename || t.converted_filename}`,
+        id: t.id
+      }))
+    };
+  });
 
   console.log(`Building static site with ${photos.length} photos...`);
 
@@ -42,10 +55,10 @@ async function build() {
     }
   }
 
-  await writeFile(
-    join(OUT_DIR, 'photos.json'),
-    JSON.stringify(photos, null, 2)
-  );
+  await Promise.all([
+    writeFile(join(OUT_DIR, 'photos.json'), JSON.stringify(photos, null, 2)),
+    writeFile(join(OUT_DIR, 'albums.json'), JSON.stringify(albums, null, 2))
+  ]);
 
   const [indexHtml, stylesCss, appJs] = await Promise.all([
     readFile(join(__dirname, 'public', 'index.html'), 'utf-8'),
@@ -55,19 +68,41 @@ async function build() {
 
   const staticAppJs = appJs
     .replace(
-      "const API_BASE = '';\nconst PHOTOS_ENDPOINT = `${API_BASE}/api/photos`;\nconst CONVERTED_BASE = `${API_BASE}/converted`;",
+      "const API_BASE = '';\nconst PHOTOS_ENDPOINT = `${API_BASE}/api/photos`;\nconst ALBUMS_ENDPOINT = `${API_BASE}/api/albums`;\nconst CONVERTED_BASE = `${API_BASE}/converted`;",
       "const CONVERTED_BASE = 'images';"
     )
     .replace(
-      `async function fetchPhotos() {
-  const res = await fetch(PHOTOS_ENDPOINT);
+      `async function fetchAlbums() {
+  const res = await fetch(ALBUMS_ENDPOINT);
+  if (!res.ok) throw new Error('Failed to fetch albums');
+  return res.json();
+}`,
+      `async function fetchAlbums() {
+  const res = await fetch('albums.json');
+  if (!res.ok) throw new Error('Failed to fetch albums');
+  return res.json();
+}`
+    )
+    .replace(
+      `async function fetchPhotos(album = null) {
+  const url = album != null && album !== ''
+    ? \`\${PHOTOS_ENDPOINT}?album=\${encodeURIComponent(album)}\`
+    : PHOTOS_ENDPOINT;
+  const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch photos');
   return res.json();
 }`,
-      `async function fetchPhotos() {
-  const res = await fetch('photos.json');
-  if (!res.ok) throw new Error('Failed to fetch photos');
-  return res.json();
+      `let _allPhotos = null;
+async function fetchPhotos(album = null) {
+  if (!_allPhotos) {
+    const res = await fetch('photos.json');
+    if (!res.ok) throw new Error('Failed to fetch photos');
+    _allPhotos = await res.json();
+  }
+  if (album == null || album === '') {
+    return _allPhotos.filter((p) => !(p.album || ''));
+  }
+  return _allPhotos.filter((p) => (p.album || '') === album);
 }`
     );
 

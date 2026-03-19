@@ -26,7 +26,7 @@ Open http://localhost:3192
 npm run build
 ```
 
-Outputs a static site to `dist/` with all photos, metadata, and assets. Serve it with any static host (e.g. `npx serve dist` or deploy to GitHub Pages, Netlify, etc.).
+Outputs a static site to `dist/` with all photos, albums, metadata, and assets. Albums are supported via subfolders in `photos/`. Serve it with any static host (e.g. `npx serve dist` or deploy to GitHub Pages, Netlify, etc.).
 
 ## Deploy to GitHub Pages
 
