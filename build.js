@@ -14,6 +14,7 @@ async function build() {
   const photos = getAllPhotos().map((p) => ({
     id: p.id,
     converted_filename: p.converted_filename,
+    thumbnail_filename: p.thumbnail_filename,
     latitude: p.latitude,
     longitude: p.longitude,
     taken_at: p.taken_at,
@@ -33,6 +34,12 @@ async function build() {
       join(convertedDir, p.converted_filename),
       join(imagesDir, p.converted_filename)
     );
+    if (p.thumbnail_filename) {
+      await copyFile(
+        join(convertedDir, p.thumbnail_filename),
+        join(imagesDir, p.thumbnail_filename)
+      );
+    }
   }
 
   await writeFile(

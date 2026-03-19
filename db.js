@@ -12,6 +12,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     original_path TEXT UNIQUE NOT NULL,
     converted_filename TEXT NOT NULL,
+    thumbnail_filename TEXT,
     latitude REAL,
     longitude REAL,
     taken_at TEXT,
@@ -21,17 +22,21 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_photos_coords ON photos(latitude, longitude);
 `);
 
+try {
+  db.prepare('ALTER TABLE photos ADD COLUMN thumbnail_filename TEXT').run();
+} catch (_) {}
+
 export function insertPhoto(photo) {
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO photos (original_path, converted_filename, latitude, longitude, taken_at)
-    VALUES (@original_path, @converted_filename, @latitude, @longitude, @taken_at)
+    INSERT OR REPLACE INTO photos (original_path, converted_filename, thumbnail_filename, latitude, longitude, taken_at)
+    VALUES (@original_path, @converted_filename, @thumbnail_filename, @latitude, @longitude, @taken_at)
   `);
   stmt.run(photo);
 }
 
 export function getAllPhotos() {
   const stmt = db.prepare(`
-    SELECT id, original_path, converted_filename, latitude, longitude, taken_at, created_at
+    SELECT id, original_path, converted_filename, thumbnail_filename, latitude, longitude, taken_at, created_at
     FROM photos
     ORDER BY COALESCE(taken_at, created_at) ASC
   `);
@@ -61,6 +66,11 @@ export function getPhotoByFilename(filename) {
 export function deletePhotoByPath(originalPath) {
   const stmt = db.prepare('DELETE FROM photos WHERE original_path = ?');
   return stmt.run(originalPath);
+}
+
+export function updatePhotoThumbnail(id, thumbnailFilename) {
+  const stmt = db.prepare('UPDATE photos SET thumbnail_filename = ? WHERE id = ?');
+  return stmt.run(thumbnailFilename, id);
 }
 
 export default db;

@@ -252,7 +252,7 @@ function renderTimeline() {
     cell.dataset.photoId = photo.id;
 
     const img = document.createElement('img');
-    img.src = `${CONVERTED_BASE}/${photo.converted_filename}`;
+    img.src = `${CONVERTED_BASE}/${photo.thumbnail_filename || photo.converted_filename}`;
     img.alt = `Photo ${photo.id}`;
     img.loading = 'lazy';
 
@@ -304,7 +304,7 @@ function setupMap() {
   function addMapMarkers() {
     markers.forEach((m) => m.remove());
     markers = sortedByTimeline.map((photo) => {
-      const photoUrl = `${CONVERTED_BASE}/${photo.converted_filename}`;
+      const photoUrl = `${CONVERTED_BASE}/${photo.thumbnail_filename || photo.converted_filename}`;
       const el = document.createElement('div');
       el.className = 'map-marker';
       el.innerHTML = `<div class="map-marker-pin"><img src="${photoUrl}" alt=""></div>`;

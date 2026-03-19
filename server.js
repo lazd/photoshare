@@ -28,6 +28,7 @@ app.get('/api/photos', (req, res) => {
     res.json(photos.map(p => ({
       id: p.id,
       converted_filename: p.converted_filename,
+      thumbnail_filename: p.thumbnail_filename,
       latitude: p.latitude,
       longitude: p.longitude,
       taken_at: p.taken_at,
@@ -51,6 +52,14 @@ async function syncDeletedPhotos() {
         await unlink(convertedPath);
       } catch (err) {
         if (err.code !== 'ENOENT') console.error('Error deleting converted file', convertedPath, err);
+      }
+      if (photo.thumbnail_filename) {
+        const thumbPath = join(getConvertedDir(), photo.thumbnail_filename);
+        try {
+          await unlink(thumbPath);
+        } catch (err) {
+          if (err.code !== 'ENOENT') console.error('Error deleting thumbnail', thumbPath, err);
+        }
       }
       deletePhotoByPath(photo.original_path);
       removed++;
@@ -98,6 +107,14 @@ async function start() {
           console.log('Deleted converted:', photo.converted_filename);
         } catch (err) {
           if (err.code !== 'ENOENT') console.error('Error deleting converted file', convertedPath, err);
+        }
+        if (photo.thumbnail_filename) {
+          const thumbPath = join(getConvertedDir(), photo.thumbnail_filename);
+          try {
+            await unlink(thumbPath);
+          } catch (err) {
+            if (err.code !== 'ENOENT') console.error('Error deleting thumbnail', thumbPath, err);
+          }
         }
         deletePhotoByPath(photo.original_path);
         console.log('Removed from DB:', photo.original_path);

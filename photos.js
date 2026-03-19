@@ -4,7 +4,7 @@ import exifr from 'exifr';
 import sharp from 'sharp';
 import heicConvert from 'heic-convert';
 import { createHash } from 'crypto';
-import { insertPhoto, photoExistsByPath } from './db.js';
+import { insertPhoto, photoExistsByPath, getAllPhotos, updatePhotoThumbnail } from './db.js';
 
 const PHOTOS_DIR = join(process.cwd(), 'photos');
 const CONVERTED_DIR = join(process.cwd(), 'converted');
@@ -25,6 +25,11 @@ function getConvertedFilename(originalPath) {
   const hash = createHash('sha256').update(originalPath).digest('hex').slice(0, 12);
   const base = `photo_${hash}`;
   return `${base}.jpg`;
+}
+
+function getThumbnailFilename(originalPath) {
+  const hash = createHash('sha256').update(originalPath).digest('hex').slice(0, 12);
+  return `thumb_${hash}.jpg`;
 }
 
 export async function processPhoto(originalPath) {
@@ -53,7 +58,11 @@ export async function processPhoto(originalPath) {
 
   const isHeic = ['.heic', '.heif'].includes(ext);
   const resizeOptions = { fit: 'inside', withoutEnlargement: true };
+  const thumbnailFilename = getThumbnailFilename(resolvedPath);
+  const thumbnailPath = join(CONVERTED_DIR, thumbnailFilename);
+
   try {
+    let input;
     if (isHeic) {
       const inputBuffer = await readFile(resolvedPath);
       const outputBuffer = await heicConvert({
@@ -61,18 +70,15 @@ export async function processPhoto(originalPath) {
         format: 'JPEG',
         quality: 0.9
       });
-      await sharp(outputBuffer)
-        .rotate()
-        .resize(1440, 1440, resizeOptions)
-        .jpeg({ quality: 90 })
-        .toFile(outputPath);
+      input = sharp(outputBuffer).rotate();
     } else {
-      await sharp(resolvedPath)
-        .rotate()
-        .resize(1440, 1440, resizeOptions)
-        .jpeg({ quality: 90 })
-        .toFile(outputPath);
+      input = sharp(resolvedPath).rotate();
     }
+
+    await Promise.all([
+      input.clone().resize(1440, 1440, resizeOptions).jpeg({ quality: 90 }).toFile(outputPath),
+      input.clone().resize(480, 480, resizeOptions).jpeg({ quality: 80 }).toFile(thumbnailPath)
+    ]);
   } catch (err) {
     console.error(`Failed to convert ${resolvedPath}:`, err.message);
     return null;
@@ -81,6 +87,7 @@ export async function processPhoto(originalPath) {
   const photo = {
     original_path: resolvedPath,
     converted_filename: convertedFilename,
+    thumbnail_filename: thumbnailFilename,
     latitude: latitude ?? null,
     longitude: longitude ?? null,
     taken_at: takenAt
@@ -88,6 +95,28 @@ export async function processPhoto(originalPath) {
 
   insertPhoto(photo);
   return photo;
+}
+
+export async function syncThumbnails() {
+  const resizeOptions = { fit: 'inside', withoutEnlargement: true };
+  const photosWithoutThumb = getAllPhotos().filter(p => !p.thumbnail_filename);
+  let generated = 0;
+  for (const photo of photosWithoutThumb) {
+    try {
+      const thumbnailFilename = getThumbnailFilename(photo.original_path);
+      const convertedPath = join(CONVERTED_DIR, photo.converted_filename);
+      const thumbnailPath = join(CONVERTED_DIR, thumbnailFilename);
+      await sharp(convertedPath)
+        .resize(480, 480, resizeOptions)
+        .jpeg({ quality: 80 })
+        .toFile(thumbnailPath);
+      updatePhotoThumbnail(photo.id, thumbnailFilename);
+      generated++;
+    } catch (err) {
+      console.error(`Failed to generate thumbnail for ${photo.converted_filename}:`, err.message);
+    }
+  }
+  return generated;
 }
 
 export async function processAllPhotos() {
@@ -105,7 +134,9 @@ export async function processAllPhotos() {
     const result = await processPhoto(filePath);
     if (result) processed++;
   }
-  return processed;
+
+  const thumbGenerated = await syncThumbnails();
+  return processed + thumbGenerated;
 }
 
 export function getPhotosDir() {
