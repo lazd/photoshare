@@ -13,6 +13,7 @@ db.exec(`
     original_path TEXT UNIQUE NOT NULL,
     converted_filename TEXT NOT NULL,
     thumbnail_filename TEXT,
+    album TEXT,
     latitude REAL,
     longitude REAL,
     taken_at TEXT,
@@ -20,27 +21,62 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_photos_taken_at ON photos(taken_at);
   CREATE INDEX IF NOT EXISTS idx_photos_coords ON photos(latitude, longitude);
+  CREATE INDEX IF NOT EXISTS idx_photos_album ON photos(album);
 `);
 
 try {
   db.prepare('ALTER TABLE photos ADD COLUMN thumbnail_filename TEXT').run();
 } catch (_) {}
+try {
+  db.prepare('ALTER TABLE photos ADD COLUMN album TEXT').run();
+} catch (_) {}
 
 export function insertPhoto(photo) {
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO photos (original_path, converted_filename, thumbnail_filename, latitude, longitude, taken_at)
-    VALUES (@original_path, @converted_filename, @thumbnail_filename, @latitude, @longitude, @taken_at)
+    INSERT OR REPLACE INTO photos (original_path, converted_filename, thumbnail_filename, album, latitude, longitude, taken_at)
+    VALUES (@original_path, @converted_filename, @thumbnail_filename, @album, @latitude, @longitude, @taken_at)
   `);
   stmt.run(photo);
 }
 
-export function getAllPhotos() {
+export function getAllPhotos(album = null) {
+  const cols = 'id, original_path, converted_filename, thumbnail_filename, album, latitude, longitude, taken_at, created_at';
+  if (album != null && album !== '') {
+    const stmt = db.prepare(`
+      SELECT ${cols} FROM photos WHERE COALESCE(album, '') = ?
+      ORDER BY COALESCE(taken_at, created_at) ASC
+    `);
+    return stmt.all(album);
+  }
   const stmt = db.prepare(`
-    SELECT id, original_path, converted_filename, thumbnail_filename, latitude, longitude, taken_at, created_at
-    FROM photos
+    SELECT ${cols} FROM photos
+    WHERE COALESCE(album, '') = ''
     ORDER BY COALESCE(taken_at, created_at) ASC
   `);
   return stmt.all();
+}
+
+export function getAlbums() {
+  const stmt = db.prepare(`
+    SELECT COALESCE(album, '') as album, COUNT(*) as count
+    FROM photos
+    GROUP BY COALESCE(album, '')
+    ORDER BY album ASC
+  `);
+  return stmt.all();
+}
+
+export function getAlbumIconThumbnails(album, limit = 4) {
+  const albumVal = album === '' || album == null ? '' : album;
+  const stmt = db.prepare(`
+    SELECT id, thumbnail_filename, converted_filename
+    FROM photos
+    WHERE COALESCE(album, '') = ?
+      AND (thumbnail_filename IS NOT NULL OR converted_filename IS NOT NULL)
+    ORDER BY COALESCE(taken_at, created_at) ASC
+    LIMIT ?
+  `);
+  return stmt.all(albumVal, limit);
 }
 
 export function getPhotoById(id) {
@@ -71,6 +107,11 @@ export function deletePhotoByPath(originalPath) {
 export function updatePhotoThumbnail(id, thumbnailFilename) {
   const stmt = db.prepare('UPDATE photos SET thumbnail_filename = ? WHERE id = ?');
   return stmt.run(thumbnailFilename, id);
+}
+
+export function updatePhotoAlbum(originalPath, album) {
+  const stmt = db.prepare('UPDATE photos SET album = ? WHERE original_path = ?');
+  return stmt.run(album ?? '', originalPath);
 }
 
 export default db;

@@ -1,10 +1,10 @@
-import { readdir, readFile, mkdir, writeFile } from 'fs/promises';
-import { join, extname, resolve } from 'path';
+import { readdir, readFile, mkdir, stat } from 'fs/promises';
+import { join, extname, resolve, relative } from 'path';
 import exifr from 'exifr';
 import sharp from 'sharp';
 import heicConvert from 'heic-convert';
 import { createHash } from 'crypto';
-import { insertPhoto, photoExistsByPath, getAllPhotos, updatePhotoThumbnail } from './db.js';
+import { insertPhoto, photoExistsByPath, getAllPhotos, updatePhotoThumbnail, updatePhotoAlbum } from './db.js';
 
 const PHOTOS_DIR = join(process.cwd(), 'photos');
 const CONVERTED_DIR = join(process.cwd(), 'converted');
@@ -36,7 +36,7 @@ function getThumbnailFilename(originalPath) {
   return `thumb_${hash}.jpg`;
 }
 
-export async function processPhoto(originalPath) {
+export async function processPhoto(originalPath, album = '') {
   const resolvedPath = resolve(originalPath);
   const ext = extname(resolvedPath).toLowerCase();
   if (!IMAGE_EXTENSIONS.has(ext)) return null;
@@ -92,6 +92,7 @@ export async function processPhoto(originalPath) {
     original_path: resolvedPath,
     converted_filename: convertedFilename,
     thumbnail_filename: thumbnailFilename,
+    album: album ?? '',
     latitude: latitude ?? null,
     longitude: longitude ?? null,
     taken_at: takenAt
@@ -123,19 +124,35 @@ export async function syncThumbnails() {
   return generated;
 }
 
+async function walkPhotos(dir, baseDir = PHOTOS_DIR) {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const results = [];
+  for (const e of entries) {
+    const fullPath = join(dir, e.name);
+    if (e.isDirectory()) {
+      results.push(...await walkPhotos(fullPath, baseDir));
+    } else if (e.isFile()) {
+      const rel = relative(baseDir, dir);
+      const album = rel && rel !== '.' ? rel : '';
+      results.push({ path: fullPath, album });
+    }
+  }
+  return results;
+}
+
 export async function processAllPhotos() {
   await ensureDir(PHOTOS_DIR);
   await ensureDir(CONVERTED_DIR);
 
-  const entries = await readdir(PHOTOS_DIR, { withFileTypes: true });
-  const files = entries
-    .filter(e => e.isFile())
-    .map(e => join(PHOTOS_DIR, e.name));
-
+  const filesWithAlbums = await walkPhotos(PHOTOS_DIR);
   let processed = 0;
-  for (const filePath of files) {
-    if (photoExistsByPath(resolve(filePath))) continue;
-    const result = await processPhoto(filePath);
+  for (const { path: filePath, album } of filesWithAlbums) {
+    const resolved = resolve(filePath);
+    if (photoExistsByPath(resolved)) {
+      updatePhotoAlbum(resolved, album);
+      continue;
+    }
+    const result = await processPhoto(filePath, album);
     if (result) processed++;
   }
 

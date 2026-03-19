@@ -14,6 +14,30 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div class="album-picker" id="albumPicker">
+    <h1 class="album-picker-title">Choose an album</h1>
+    <div class="album-grid" id="albumGrid"></div>
+  </div>
+  <div class="album-view hidden" id="albumView">
+  <button type="button" class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false">
+    <span class="menu-toggle-bar"></span>
+    <span class="menu-toggle-bar"></span>
+    <span class="menu-toggle-bar"></span>
+  </button>
+  <div class="menu-overlay" id="menuOverlay" aria-hidden="true"></div>
+  <nav class="menu-drawer" id="menuDrawer" aria-label="Main menu">
+    <ul class="menu-list">
+      <li><button type="button" class="menu-item" id="menuBackToAlbums">← Back to albums</button></li>
+      <li><button type="button" class="menu-item" id="menuToggleMap">Hide map</button></li>
+      <li>
+        <span class="menu-item-label">Map tiles</span>
+        <div class="menu-item-actions">
+          <button type="button" class="map-btn map-layer-btn menu-tile-btn" data-style="map" title="Map view">Map</button>
+          <button type="button" class="map-btn map-layer-btn menu-tile-btn" data-style="satellite" title="Satellite view">Satellite</button>
+        </div>
+      </li>
+    </ul>
+  </nav>
   <div class="layout">
     <main class="main-content">
       <section class="photo-preview">
@@ -37,6 +61,7 @@
     <aside class="timeline">
       <div class="timeline-track" id="timeline"></div>
     </aside>
+  </div>
   </div>
   <div class="fullscreen-overlay" id="fullscreenOverlay" aria-hidden="true">
     <div class="carousel-viewport"></div>

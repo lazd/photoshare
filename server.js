@@ -1,9 +1,9 @@
 import express from 'express';
-import { join, dirname, resolve, basename } from 'path';
+import { join, dirname, resolve, basename, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { readFile, unlink, access } from 'fs/promises';
 import chokidar from 'chokidar';
-import { getAllPhotos, getPhotoByPath, getPhotoByFilename, deletePhotoByPath } from './db.js';
+import { getAllPhotos, getPhotoByPath, getPhotoByFilename, deletePhotoByPath, getAlbums, getAlbumIconThumbnails } from './db.js';
 import { processPhoto, processAllPhotos, getPhotosDir, getConvertedDir } from './photos.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -22,13 +22,37 @@ app.get('/', async (req, res) => {
 });
 app.use('/converted', express.static(getConvertedDir()));
 
+app.get('/api/albums', (req, res) => {
+  try {
+    const albums = getAlbums();
+    const CONVERTED_BASE = '/converted';
+    const result = albums.map(a => {
+      const thumbs = getAlbumIconThumbnails(a.album, 4);
+      return {
+        album: a.album,
+        count: a.count,
+        thumbnails: thumbs.map(t => ({
+          thumbnail: t.thumbnail_filename ? `${CONVERTED_BASE}/${t.thumbnail_filename}` : `${CONVERTED_BASE}/${t.converted_filename}`,
+          id: t.id
+        }))
+      };
+    });
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch albums' });
+  }
+});
+
 app.get('/api/photos', (req, res) => {
   try {
-    const photos = getAllPhotos();
+    const album = req.query.album ?? null;
+    const photos = getAllPhotos(album);
     res.json(photos.map(p => ({
       id: p.id,
       converted_filename: p.converted_filename,
       thumbnail_filename: p.thumbnail_filename,
+      album: p.album,
       latitude: p.latitude,
       longitude: p.longitude,
       taken_at: p.taken_at,
@@ -86,7 +110,9 @@ async function start() {
   watcher.on('add', async (filePath) => {
     console.log('New photo detected:', filePath);
     try {
-      const result = await processPhoto(filePath);
+      const relDir = relative(photosDir, dirname(filePath));
+      const album = relDir && relDir !== '.' ? relDir : '';
+      const result = await processPhoto(filePath, album);
       if (result) console.log('Added:', result.converted_filename);
     } catch (err) {
       console.error('Error processing', filePath, err);
