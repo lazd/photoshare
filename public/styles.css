@@ -4,6 +4,14 @@
   --bg-tertiary: #21262d;
   --text-primary: #e6edf3;
   --text-secondary: #8b949e;
+  --button-bg: #fff;
+  --button-fg: #424242;
+  --button-bg-hover: #e0e0e0;
+  --button-fg-hover: #151515;
+  --button-bg-active: #aeaeae;
+  --button-fg-active: #151515;
+  --button-bg-dark: #424242;
+  --button-fg-dark: #d1d1d1;
   --accent: #58a6ff;
   --accent-hover: #79b8ff;
   --highlight: #388bfd;
@@ -44,6 +52,7 @@ body {
 .main-content {
   flex: 1;
   min-height: 0;
+  position: relative;
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-rows: 1fr;
@@ -51,6 +60,19 @@ body {
   padding: var(--preview-padding);
   padding-bottom: 0;
   overflow: hidden;
+}
+
+.main-content.map-minimized {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+.main-content.map-minimized .map-container {
+  display: none;
+}
+.main-content.map-minimized .photo-preview {
+  aspect-ratio: auto;
+  width: 100%;
+  height: 100%;
 }
 
 /* Wide viewport: photo area sized for landscape (4:3) so landscape photos fill the space */
@@ -198,12 +220,67 @@ body {
   object-fit: contain;
   border-radius: 0;
 }
+.fullscreen-overlay .snap-carousel-slide.photo-portrait img {
+  object-fit: contain;
+}
 
 .map-container {
   min-width: 0;
   min-height: 0;
   position: relative;
   overflow: hidden;
+}
+
+.map-btn {
+  appearance: none;
+  color: var(--button-fg);
+  background: var(--button-bg);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+}
+.map-btn:hover {
+  color: var(--button-fg-hover);
+  background: var(--button-bg-hover);
+}
+.map-btn.dark {
+  color: var(--button-fg-dark);
+  background: var(--button-bg-dark);
+}
+.map-btn.active {
+  color: var(--button-fg-active);
+  background: var(--button-bg-active);
+}
+
+.map-minimize-btn {
+  position: absolute;
+  z-index: 10000;
+  bottom: 8px;
+  right: 24px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+}
+.map-minimize-btn .map-btn-icon {
+  width: 18px;
+  height: 18px;
+}
+.map-minimize-btn .map-btn-maximize {
+  display: none;
+}
+.map-minimize-btn.map-minimized .map-btn-minimize {
+  display: none;
+}
+.map-minimize-btn.map-minimized .map-btn-maximize {
+  display: block;
+}
+.map-minimize-btn.map-minimized {
+  color: var(--button-fg-dark);
+  background: var(--button-bg-dark);
 }
 
 #map {
@@ -223,21 +300,13 @@ body {
   overflow: hidden;
 }
 .map-layer-btn {
-  display: block;
-  width: 100%;
-  padding: 6px 10px;
-  appearance: none;
-  background: #fff;
-  cursor: pointer;
+}
+.map-layer-btn {
+  border-radius: 0;
+  box-shadow: none;
 }
 .map-layer-btn + .map-layer-btn {
   border-top: 1px solid rgba(0, 0, 0, 0.1);
-}
-.map-layer-btn:hover {
-  background: #f4f4f4;
-}
-.map-layer-btn.active {
-  background: #dedede;
 }
 
 .map-marker {
@@ -341,6 +410,10 @@ body {
     padding: var(--preview-padding);
     padding-top: 0;
     grid-template-rows: auto minmax(140px, 1fr);
+  }
+
+  .main-content.map-minimized {
+    grid-template-rows: 1fr;
   }
 
   .photo-preview {

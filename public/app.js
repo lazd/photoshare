@@ -12,15 +12,19 @@ let isScrollingTimeline = false;
 let recentlyScrolledTimeline = false;
 let currentMapStyle = 'map';
 let setMapStyleFn = null;
+let mapMinimized = false;
 
 function parseHash() {
   const params = new URLSearchParams(location.hash.slice(1));
   const id = params.get('photo');
-  const map = params.get('map') === 'satellite' ? 'satellite' : 'map';
+  const mapParam = params.get('map');
+  const mapVisible = mapParam !== 'false';
+  const mapStyle = mapParam === 'satellite' ? 'satellite' : 'map';
   return {
     id: id ? parseInt(id, 10) : null,
     fullscreen: params.get('fullscreen') === 'true',
-    map
+    map: mapStyle,
+    mapVisible
   };
 }
 
@@ -32,10 +36,28 @@ function updateHash() {
     params.set('photo', selectedPhotoId);
     if (isFullscreen) params.set('fullscreen', 'true');
   }
-  if (currentMapStyle === 'satellite') params.set('map', 'satellite');
+  if (mapMinimized) {
+    params.set('map', 'false');
+  } else if (currentMapStyle === 'satellite') {
+    params.set('map', 'satellite');
+  }
   const newHash = params.toString() ? '#' + params.toString() : '';
   if (location.hash !== newHash) {
     location.hash = newHash;
+  }
+}
+
+function setMapMinimized(minimized) {
+  mapMinimized = minimized;
+  const main = document.querySelector('.main-content');
+  if (main) main.classList.toggle('map-minimized', mapMinimized);
+  map?.resize();
+  updateHash();
+  const minimizeBtn = document.getElementById('mapMinimizeBtn');
+  if (minimizeBtn) {
+    minimizeBtn.classList.toggle('map-minimized', mapMinimized);
+    minimizeBtn.title = mapMinimized ? 'Maximize map' : 'Minimize map';
+    minimizeBtn.setAttribute('aria-label', mapMinimized ? 'Maximize map' : 'Minimize map');
   }
 }
 
@@ -377,8 +399,8 @@ function setupMap() {
   const layerControl = document.createElement('div');
   layerControl.className = 'map-layer-control maplibregl-ctrl maplibregl-ctrl-group';
   layerControl.innerHTML = `
-    <button type="button" class="map-layer-btn" data-style="map" title="Map view">🗺️</button>
-    <button type="button" class="map-layer-btn" data-style="satellite" title="Satellite view">🛰️</button>
+    <button type="button" class="map-btn map-layer-btn" data-style="map" title="Map view">🗺️</button>
+    <button type="button" class="map-btn map-layer-btn" data-style="satellite" title="Satellite view">🛰️</button>
   `;
   layerControl.querySelectorAll('.map-layer-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.style === currentMapStyle);
@@ -408,6 +430,11 @@ function setupMap() {
   const mapContainer = document.querySelector('.map-container');
   if (mapContainer) {
     new ResizeObserver(() => map?.resize()).observe(mapContainer);
+  }
+
+  const minimizeBtn = document.getElementById('mapMinimizeBtn');
+  if (minimizeBtn) {
+    minimizeBtn.addEventListener('click', () => setMapMinimized(!mapMinimized));
   }
 }
 
@@ -530,8 +557,11 @@ async function init() {
   }
 
   function applyHash() {
-    const { id, fullscreen, map: hashMap } = parseHash();
+    const { id, fullscreen, map: hashMap, mapVisible } = parseHash();
     if (hashMap && hashMap !== currentMapStyle && setMapStyleFn) setMapStyleFn(hashMap);
+    if (mapVisible !== !mapMinimized) {
+      setMapMinimized(!mapVisible);
+    }
     if (id != null && photos.some((p) => p.id === id)) {
       if (id !== selectedPhotoId) selectPhoto(id, { skipHashUpdate: true, instant: true });
       const overlay = document.getElementById('fullscreenOverlay');
