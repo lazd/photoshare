@@ -11,9 +11,51 @@
   <meta name="format-detection" content="telephone=no">
   <title>Photo Share</title>
   <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" crossorigin="">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div class="album-picker" id="albumPicker">
+    <h1 class="album-picker-title">Photoshare</h1>
+    <hr class="album-picker-divider">
+    <div class="album-grid" id="albumGrid"></div>
+  </div>
+  <div class="album-view hidden" id="albumView">
+  <button type="button" class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false">
+    <svg viewBox="0 0 24 24" role="img" xmlns="http://www.w3.org/2000/svg" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" color="currentColor"><path d="M6 7L18 7M6 12L18 12M6 17L18 17"/></svg>
+  </button>
+  <div class="menu-overlay" id="menuOverlay" aria-hidden="true"></div>
+  <nav class="menu-drawer" id="menuDrawer" aria-label="Main menu">
+    <header class="menu-drawer-header">
+      <button type="button" class="menu-back-btn" id="menuBackToAlbums" aria-label="Back to albums">
+        <svg class="menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <h2 class="menu-drawer-title" id="menuAlbumName">Albums</h2>
+    </header>
+    <ul class="menu-list">
+      <li>
+        <label class="menu-item menu-item-checkbox">
+          <input type="checkbox" id="menuToggleMap">
+          <span>Show map</span>
+        </label>
+      </li>
+      <li>
+        <span class="menu-item-label">Map tiles</span>
+        <div class="menu-item-radio-group" role="radiogroup" aria-label="Map tiles">
+          <label class="menu-radio-option">
+            <input type="radio" name="mapTiles" value="map" checked>
+            <span>Roadmap</span>
+          </label>
+          <label class="menu-radio-option">
+            <input type="radio" name="mapTiles" value="satellite">
+            <span>Satellite</span>
+          </label>
+        </div>
+      </li>
+    </ul>
+  </nav>
   <div class="layout">
     <main class="main-content">
       <section class="photo-preview">
@@ -24,19 +66,11 @@
       <section class="map-container">
         <div id="map"></div>
       </section>
-      <button type="button" class="map-btn map-minimize-btn" id="mapMinimizeBtn" title="Minimize map" aria-label="Minimize map" style="display: none">
-        <svg class="map-btn-icon map-btn-minimize" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M17 7L7 17M7 7L17 17"/>
-        </svg>
-        <svg class="map-btn-icon map-btn-maximize" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 13C13.6569 13 15 11.6569 15 10C15 8.34315 13.6569 7 12 7C10.3431 7 9 8.34315 9 10C9 11.6569 10.3431 13 12 13Z"/>
-          <path d="M12 22C16 18 20 14.4183 20 10C20 5.58172 16.4183 2 12 2C7.58172 2 4 5.58172 4 10C4 14.4183 8 18 12 22Z"/>
-        </svg>
-      </button>
     </main>
     <aside class="timeline">
       <div class="timeline-track" id="timeline"></div>
     </aside>
+  </div>
   </div>
   <div class="fullscreen-overlay" id="fullscreenOverlay" aria-hidden="true">
     <div class="carousel-viewport"></div>

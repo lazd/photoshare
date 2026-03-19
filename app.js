@@ -1,13 +1,18 @@
-const CONVERTED_BASE = 'images';
+const API_BASE = '';
+const PHOTOS_ENDPOINT = `${API_BASE}/api/photos`;
+const ALBUMS_ENDPOINT = `${API_BASE}/api/albums`;
+const CONVERTED_BASE = `${API_BASE}/converted`;
 
 let photos = [];
+let albums = [];
+let currentAlbum = null;
 let map = null;
 let markers = [];
 let selectedPhotoId = null;
 let isTogglingFullscreen = false;
 let isScrollingToSelection = false;
 let isScrollingTimeline = false;
-let recentlyScrolledTimeline = false;
+let recentlySelectedFromTimeline = false;
 let currentMapStyle = 'map';
 let setMapStyleFn = null;
 let mapMinimized = false;
@@ -18,11 +23,13 @@ function parseHash() {
   const mapParam = params.get('map');
   const mapVisible = mapParam !== 'false';
   const mapStyle = mapParam === 'satellite' ? 'satellite' : 'map';
+  const album = params.get('album');
   return {
     id: id ? parseInt(id, 10) : null,
     fullscreen: params.get('fullscreen') === 'true',
     map: mapStyle,
-    mapVisible
+    mapVisible,
+    album: album !== null ? decodeURIComponent(album) : null
   };
 }
 
@@ -30,6 +37,9 @@ function updateHash() {
   const overlay = document.getElementById('fullscreenOverlay');
   const isFullscreen = overlay && overlay.classList.contains('visible');
   const params = new URLSearchParams();
+  if (currentAlbum != null && currentAlbum !== '') {
+    params.set('album', encodeURIComponent(currentAlbum));
+  }
   if (selectedPhotoId != null) {
     params.set('photo', selectedPhotoId);
     if (isFullscreen) params.set('fullscreen', 'true');
@@ -57,10 +67,48 @@ function setMapMinimized(minimized) {
     minimizeBtn.title = mapMinimized ? 'Maximize map' : 'Minimize map';
     minimizeBtn.setAttribute('aria-label', mapMinimized ? 'Maximize map' : 'Minimize map');
   }
+  const menuToggleMap = document.getElementById('menuToggleMap');
+  if (menuToggleMap) menuToggleMap.checked = !mapMinimized;
 }
 
-async function fetchPhotos() {
-  const res = await fetch('photos.json');
+function openMenu() {
+  const menuToggleMap = document.getElementById('menuToggleMap');
+  if (menuToggleMap) menuToggleMap.checked = !mapMinimized;
+  const mapTileMap = document.querySelector('input[name="mapTiles"][value="map"]');
+  const mapTileSatellite = document.querySelector('input[name="mapTiles"][value="satellite"]');
+  if (mapTileMap) mapTileMap.checked = currentMapStyle === 'map';
+  if (mapTileSatellite) mapTileSatellite.checked = currentMapStyle === 'satellite';
+  const menuAlbumName = document.getElementById('menuAlbumName');
+  if (menuAlbumName) menuAlbumName.textContent = formatAlbumName(currentAlbum ?? '');
+  document.getElementById('menuToggle')?.setAttribute('aria-expanded', 'true');
+  document.getElementById('menuOverlay')?.classList.add('visible');
+  document.getElementById('menuOverlay')?.setAttribute('aria-hidden', 'false');
+  document.getElementById('menuDrawer')?.classList.add('open');
+}
+
+function closeMenu() {
+  document.getElementById('menuToggle')?.setAttribute('aria-expanded', 'false');
+  document.getElementById('menuOverlay')?.classList.remove('visible');
+  document.getElementById('menuOverlay')?.setAttribute('aria-hidden', 'true');
+  document.getElementById('menuDrawer')?.classList.remove('open');
+}
+
+function formatAlbumName(name) {
+  if (!name) return 'Photos';
+  return name.replace(/([A-Z])/g, ' $1').trim();
+}
+
+async function fetchAlbums() {
+  const res = await fetch(ALBUMS_ENDPOINT);
+  if (!res.ok) throw new Error('Failed to fetch albums');
+  return res.json();
+}
+
+async function fetchPhotos(album = null) {
+  const url = album != null && album !== ''
+    ? `${PHOTOS_ENDPOINT}?album=${encodeURIComponent(album)}`
+    : PHOTOS_ENDPOINT;
+  const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch photos');
   return res.json();
 }
@@ -224,10 +272,15 @@ function selectPhoto(photoId, opts = {}) {
 
   updateMarkerStyles();
 
-  const cell = document.querySelector(`.timeline-cell[data-photo-id="${photoId}"]`);
-  if (cell) {
-    const scrollBehavior = opts.instant ? 'auto' : 'smooth';
-    cell.scrollIntoView({ behavior: scrollBehavior, block: 'nearest', inline: 'center' });
+  if (!opts.skipTimelineScroll) {
+    const cell = document.querySelector(`.timeline-cell[data-photo-id="${photoId}"]`);
+    if (cell) {
+      const scrollBehavior = opts.instant ? 'auto' : 'smooth';
+      cell.scrollIntoView({ behavior: scrollBehavior, block: 'nearest', inline: 'center' });
+    }
+  } else {
+    recentlySelectedFromTimeline = true;
+    setTimeout(() => { recentlySelectedFromTimeline = false; }, 500);
   }
 
   if (!opts.skipHashUpdate) updateHash();
@@ -305,7 +358,7 @@ function renderTimeline() {
 
     cell.appendChild(img);
 
-    cell.addEventListener('click', () => selectPhoto(photo.id));
+    cell.addEventListener('click', () => selectPhoto(photo.id, { instant: true, skipTimelineScroll: true }));
 
     track.appendChild(cell);
   });
@@ -381,7 +434,6 @@ function setupMap() {
 
   function setMapStyle(style) {
     currentMapStyle = style;
-    layerControl.querySelectorAll('.map-layer-btn').forEach((b) => b.classList.toggle('active', b.dataset.style === style));
     const savedCenter = map.getCenter();
     const savedZoom = map.getZoom();
     map.setStyle(style === 'satellite' ? MAP_STYLE_SATELLITE : MAP_STYLE_LIBERTY);
@@ -394,37 +446,8 @@ function setupMap() {
     updateHash();
   }
 
-  const layerControl = document.createElement('div');
-  layerControl.className = 'map-layer-control maplibregl-ctrl maplibregl-ctrl-group';
-  layerControl.innerHTML = `
-    <button type="button" class="map-btn map-layer-btn" data-style="map" title="Map view">🗺️</button>
-    <button type="button" class="map-btn map-layer-btn" data-style="satellite" title="Satellite view">🛰️</button>
-  `;
-  layerControl.querySelectorAll('.map-layer-btn').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.style === currentMapStyle);
-    btn.addEventListener('click', () => {
-      setMapStyle(btn.dataset.style);
-    });
-  });
-  const layerControlObj = { onAdd: () => layerControl, onRemove: () => {} };
-  const updateLayerControlPosition = () => {
-    const pos = window.innerWidth <= 768 ? 'top-left' : 'top-right';
-    if (map.getContainer().contains(layerControl)) {
-      map.removeControl(layerControlObj);
-    }
-    map.addControl(layerControlObj, pos);
-  };
-  updateLayerControlPosition();
-
   setMapStyleFn = setMapStyle;
-  window.addEventListener('resize', () => {
-    map?.resize();
-    const newPos = window.innerWidth <= 768 ? 'top-left' : 'top-right';
-    const currentParent = layerControl.parentElement;
-    const inTopLeft = currentParent?.classList.contains('maplibregl-ctrl-top-left');
-    const wantTopLeft = newPos === 'top-left';
-    if (inTopLeft !== wantTopLeft) updateLayerControlPosition();
-  });
+  window.addEventListener('resize', () => map?.resize());
   const mapContainer = document.querySelector('.map-container');
   if (mapContainer) {
     new ResizeObserver(() => map?.resize()).observe(mapContainer);
@@ -441,16 +464,18 @@ const TIMELINE_CELL_GAP = 8;
 const TIMELINE_PADDING = 8;
 
 function syncTimelineToCarousel(carousel) {
-  if (isScrollingTimeline || recentlyScrolledTimeline) return;
+  if (isScrollingTimeline || recentlySelectedFromTimeline) return;
   const timeline = document.querySelector('.timeline');
   if (!timeline || !carousel || photos.length <= 1) return;
   const slideWidth = carousel.offsetWidth;
   if (slideWidth <= 0) return;
   const f = getCarouselFractionalIndex(carousel);
   const cellCenter = TIMELINE_PADDING + f * (TIMELINE_CELL_WIDTH + TIMELINE_CELL_GAP) + TIMELINE_CELL_WIDTH / 2;
-  const targetScroll = cellCenter - timeline.offsetWidth / 2;
-  const maxScroll = Math.max(0, timeline.scrollWidth - timeline.offsetWidth);
-  timeline.scrollLeft = Math.max(0, Math.min(maxScroll, targetScroll));
+  const targetScroll = Math.max(0, Math.min(
+    Math.max(0, timeline.scrollWidth - timeline.offsetWidth),
+    cellCenter - timeline.offsetWidth / 2
+  ));
+  timeline.scrollTo({ left: targetScroll, behavior: 'auto' });
 }
 
 function setupCarouselScrollSync(scrollEl, opts = {}) {
@@ -515,70 +540,187 @@ function setupCarouselScrollSync(scrollEl, opts = {}) {
   }
 }
 
-async function init() {
-  document.addEventListener('touchmove', (e) => {
-    if (e.touches.length > 1) e.preventDefault();
-  }, { passive: false });
+function renderAlbumPicker() {
+  const grid = document.getElementById('albumGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  albums.forEach((a) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'album-card';
+    btn.dataset.album = a.album;
+    const polaroid = document.createElement('div');
+    polaroid.className = 'album-card-polaroid';
+    const stack = document.createElement('div');
+    stack.className = 'polaroid-stack';
+    (a.thumbnails || []).forEach((t) => {
+      const img = document.createElement('img');
+      img.className = 'polaroid-img';
+      img.src = t.thumbnail;
+      img.alt = '';
+      stack.appendChild(img);
+    });
+    polaroid.appendChild(stack);
+    const name = document.createElement('p');
+    name.className = 'album-card-name';
+    name.textContent = formatAlbumName(a.album);
+    const count = document.createElement('p');
+    count.className = 'album-card-count';
+    count.textContent = `${a.count} photo${a.count !== 1 ? 's' : ''}`;
+    btn.appendChild(polaroid);
+    btn.appendChild(name);
+    btn.appendChild(count);
+    btn.addEventListener('click', () => selectAlbum(a.album));
+    grid.appendChild(btn);
+  });
+}
 
-  photos = await fetchPhotos();
+function showAlbumPicker() {
+  document.getElementById('albumPicker')?.classList.remove('hidden');
+  document.getElementById('albumView')?.classList.add('hidden');
+}
+
+function showAlbumView() {
+  document.getElementById('albumPicker')?.classList.add('hidden');
+  document.getElementById('albumView')?.classList.remove('hidden');
+}
+
+function applyHash() {
+  const { id, fullscreen, map: hashMap, mapVisible, album: hashAlbum } = parseHash();
+
+  if (hashAlbum != null && albums.some((a) => a.album === hashAlbum)) {
+    if (hashAlbum !== currentAlbum) {
+      currentAlbum = hashAlbum;
+      showAlbumView();
+      loadAlbum(hashAlbum);
+      return;
+    }
+  } else if (hashAlbum === null || hashAlbum === '') {
+    if (currentAlbum != null) {
+      currentAlbum = null;
+      renderAlbumPicker();
+      showAlbumPicker();
+      return;
+    }
+  }
+
+  if (hashMap && hashMap !== currentMapStyle && setMapStyleFn) setMapStyleFn(hashMap);
+  if (mapVisible !== !mapMinimized) {
+    setMapMinimized(!mapVisible);
+  }
+  if (photos.length > 0 && id != null && photos.some((p) => p.id === id)) {
+    if (id !== selectedPhotoId) selectPhoto(id, { skipHashUpdate: true, instant: true });
+    const overlay = document.getElementById('fullscreenOverlay');
+    const isOpen = overlay.classList.contains('visible');
+    if (fullscreen !== isOpen) toggleFullscreen({ skipHashUpdate: true });
+    updateHash();
+  } else if (photos.length > 0 && selectedPhotoId == null) {
+    selectPhoto(photos[0].id, { skipHashUpdate: true, instant: true });
+  }
+}
+
+async function selectAlbum(album) {
+  currentAlbum = album;
+  updateHash();
+  showAlbumView();
+  await loadAlbum(album);
+}
+
+async function loadAlbum(album) {
+  photos = await fetchPhotos(album);
   renderTimeline();
   setupMap();
 
-  const timeline = document.querySelector('.timeline');
-  if (timeline) {
-    const startTimelineScroll = () => {
-      isScrollingTimeline = true;
-      recentlyScrolledTimeline = true;
-    };
-    const endTimelineScroll = () => {
-      isScrollingTimeline = false;
-      setTimeout(() => {
-        recentlyScrolledTimeline = false;
-      }, 3500)
-    };
-    timeline.addEventListener('touchstart', startTimelineScroll, { passive: true });
-    timeline.addEventListener('touchend', endTimelineScroll, { passive: true });
-  }
-
+  const previewContainer = document.getElementById('photoPreview');
   if (photos.length === 0) {
-    document.getElementById('photoPreview').innerHTML = '<p class="photo-placeholder">No photos yet</p>';
+    previewContainer.innerHTML = '<p class="photo-placeholder">No photos in this album</p>';
   } else {
-    const previewContainer = document.getElementById('photoPreview');
     previewContainer.innerHTML = '';
     const carousel = document.createElement('div');
     carousel.id = 'photoCarousel';
     carousel.className = 'snap-carousel';
     previewContainer.appendChild(carousel);
     buildSnapCarousel(carousel);
-
     setupCarouselScrollSync(carousel);
   }
+  applyHash();
+}
 
-  function applyHash() {
-    const { id, fullscreen, map: hashMap, mapVisible } = parseHash();
-    if (hashMap && hashMap !== currentMapStyle && setMapStyleFn) setMapStyleFn(hashMap);
-    if (mapVisible !== !mapMinimized) {
-      setMapMinimized(!mapVisible);
-    }
-    if (id != null && photos.some((p) => p.id === id)) {
-      if (id !== selectedPhotoId) selectPhoto(id, { skipHashUpdate: true, instant: true });
-      const overlay = document.getElementById('fullscreenOverlay');
-      const isOpen = overlay.classList.contains('visible');
-      if (fullscreen !== isOpen) toggleFullscreen({ skipHashUpdate: true });
-      updateHash();
-    } else if (photos.length > 0 && selectedPhotoId == null) {
-      selectPhoto(photos[0].id, { skipHashUpdate: true, instant: true });
-    }
+async function init() {
+  document.addEventListener('touchmove', (e) => {
+    if (e.touches.length > 1) e.preventDefault();
+  }, { passive: false });
+
+  albums = await fetchAlbums();
+  const { album: hashAlbum } = parseHash();
+
+  if (albums.length === 0) {
+    document.getElementById('albumPicker').innerHTML = '<h1 class="album-picker-title">Photoshare</h1><hr class="album-picker-divider"><p class="photo-placeholder">No albums yet. Add photos to subfolders in the photos/ folder.</p>';
+    document.getElementById('albumPicker').classList.remove('hidden');
+    document.getElementById('albumView').classList.add('hidden');
+    return;
   }
 
-  applyHash();
+  const albumExists = hashAlbum != null && albums.some((a) => a.album === hashAlbum);
+  if (albumExists) {
+    await selectAlbum(hashAlbum);
+  } else {
+    renderAlbumPicker();
+    showAlbumPicker();
+    document.getElementById('albumView').classList.add('hidden');
+  }
+
+  const menuToggle = document.getElementById('menuToggle');
+  const menuOverlay = document.getElementById('menuOverlay');
+  const menuDrawer = document.getElementById('menuDrawer');
+  if (menuToggle) {
+    menuToggle.addEventListener('click', () => {
+      const open = menuDrawer?.classList.contains('open');
+      if (open) closeMenu();
+      else openMenu();
+    });
+  }
+  menuOverlay?.addEventListener('click', closeMenu);
+  document.getElementById('menuBackToAlbums')?.addEventListener('click', () => {
+    closeMenu();
+    location.hash = '';
+  });
+  document.getElementById('menuToggleMap')?.addEventListener('change', (e) => {
+    setMapMinimized(!e.target.checked);
+  });
+  document.querySelectorAll('input[name="mapTiles"]').forEach((radio) => {
+    radio.addEventListener('change', (e) => {
+      if (setMapStyleFn && e.target.value) setMapStyleFn(e.target.value);
+    });
+  });
+
+  const timeline = document.querySelector('.timeline');
+  if (timeline) {
+    const startTimelineScroll = () => {
+      isScrollingTimeline = true;
+    };
+    const onTimelineScrollEnd = () => {
+      requestAnimationFrame(() => {
+        isScrollingTimeline = false;
+      });
+    };
+    timeline.addEventListener('scroll', startTimelineScroll, { passive: true });
+    timeline.addEventListener('scrollend', onTimelineScrollEnd);
+  }
+
   window.addEventListener('hashchange', applyHash);
 
   document.addEventListener('keydown', (e) => {
     if (e.target.closest('input, textarea, select')) return;
-    if (document.getElementById('fullscreenOverlay').classList.contains('visible') && e.key === 'Escape') {
-      toggleFullscreen();
-      return;
+    if (e.key === 'Escape') {
+      if (document.getElementById('menuDrawer')?.classList.contains('open')) {
+        closeMenu();
+        return;
+      }
+      if (document.getElementById('fullscreenOverlay').classList.contains('visible')) {
+        toggleFullscreen();
+        return;
+      }
     }
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
