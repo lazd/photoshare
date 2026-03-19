@@ -13,6 +13,8 @@ let isTogglingFullscreen = false;
 let isScrollingToSelection = false;
 let isScrollingTimeline = false;
 let recentlyScrolledTimeline = false;
+let recentlyScrolledTimelineTimeoutId = null;
+let recentlySelectedFromTimeline = false;
 let currentMapStyle = 'map';
 let setMapStyleFn = null;
 let mapMinimized = false;
@@ -272,10 +274,15 @@ function selectPhoto(photoId, opts = {}) {
 
   updateMarkerStyles();
 
-  const cell = document.querySelector(`.timeline-cell[data-photo-id="${photoId}"]`);
-  if (cell) {
-    const scrollBehavior = opts.instant ? 'auto' : 'smooth';
-    cell.scrollIntoView({ behavior: scrollBehavior, block: 'nearest', inline: 'center' });
+  if (!opts.skipTimelineScroll) {
+    const cell = document.querySelector(`.timeline-cell[data-photo-id="${photoId}"]`);
+    if (cell) {
+      const scrollBehavior = opts.instant ? 'auto' : 'smooth';
+      cell.scrollIntoView({ behavior: scrollBehavior, block: 'nearest', inline: 'center' });
+    }
+  } else {
+    recentlySelectedFromTimeline = true;
+    setTimeout(() => { recentlySelectedFromTimeline = false; }, 500);
   }
 
   if (!opts.skipHashUpdate) updateHash();
@@ -353,7 +360,7 @@ function renderTimeline() {
 
     cell.appendChild(img);
 
-    cell.addEventListener('click', () => selectPhoto(photo.id));
+    cell.addEventListener('click', () => selectPhoto(photo.id, { instant: true, skipTimelineScroll: true }));
 
     track.appendChild(cell);
   });
@@ -459,16 +466,18 @@ const TIMELINE_CELL_GAP = 8;
 const TIMELINE_PADDING = 8;
 
 function syncTimelineToCarousel(carousel) {
-  if (isScrollingTimeline || recentlyScrolledTimeline) return;
+  if (isScrollingTimeline || recentlyScrolledTimeline || recentlySelectedFromTimeline) return;
   const timeline = document.querySelector('.timeline');
   if (!timeline || !carousel || photos.length <= 1) return;
   const slideWidth = carousel.offsetWidth;
   if (slideWidth <= 0) return;
   const f = getCarouselFractionalIndex(carousel);
   const cellCenter = TIMELINE_PADDING + f * (TIMELINE_CELL_WIDTH + TIMELINE_CELL_GAP) + TIMELINE_CELL_WIDTH / 2;
-  const targetScroll = cellCenter - timeline.offsetWidth / 2;
-  const maxScroll = Math.max(0, timeline.scrollWidth - timeline.offsetWidth);
-  timeline.scrollLeft = Math.max(0, Math.min(maxScroll, targetScroll));
+  const targetScroll = Math.max(0, Math.min(
+    Math.max(0, timeline.scrollWidth - timeline.offsetWidth),
+    cellCenter - timeline.offsetWidth / 2
+  ));
+  timeline.scrollTo({ left: targetScroll, behavior: 'auto' });
 }
 
 function setupCarouselScrollSync(scrollEl, opts = {}) {
@@ -690,14 +699,20 @@ async function init() {
   const timeline = document.querySelector('.timeline');
   if (timeline) {
     const startTimelineScroll = () => {
+      if (recentlyScrolledTimelineTimeoutId) {
+        clearTimeout(recentlyScrolledTimelineTimeoutId);
+        recentlyScrolledTimelineTimeoutId = null;
+      }
       isScrollingTimeline = true;
       recentlyScrolledTimeline = true;
     };
     const endTimelineScroll = () => {
       isScrollingTimeline = false;
-      setTimeout(() => {
+      if (recentlyScrolledTimelineTimeoutId) clearTimeout(recentlyScrolledTimelineTimeoutId);
+      recentlyScrolledTimelineTimeoutId = setTimeout(() => {
         recentlyScrolledTimeline = false;
-      }, 3500)
+        recentlyScrolledTimelineTimeoutId = null;
+      }, 3500);
     };
     timeline.addEventListener('touchstart', startTimelineScroll, { passive: true });
     timeline.addEventListener('touchend', endTimelineScroll, { passive: true });
