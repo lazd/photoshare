@@ -1,7 +1,4 @@
-const API_BASE = '';
-const PHOTOS_ENDPOINT = `${API_BASE}/api/photos`;
-const ALBUMS_ENDPOINT = `${API_BASE}/api/albums`;
-const CONVERTED_BASE = `${API_BASE}/converted`;
+const CONVERTED_BASE = 'images';
 
 let photos = [];
 let albums = [];
@@ -99,18 +96,22 @@ function formatAlbumName(name) {
 }
 
 async function fetchAlbums() {
-  const res = await fetch(ALBUMS_ENDPOINT);
+  const res = await fetch('albums.json');
   if (!res.ok) throw new Error('Failed to fetch albums');
   return res.json();
 }
 
+let _allPhotos = null;
 async function fetchPhotos(album = null) {
-  const url = album != null && album !== ''
-    ? `${PHOTOS_ENDPOINT}?album=${encodeURIComponent(album)}`
-    : PHOTOS_ENDPOINT;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch photos');
-  return res.json();
+  if (!_allPhotos) {
+    const res = await fetch('photos.json');
+    if (!res.ok) throw new Error('Failed to fetch photos');
+    _allPhotos = await res.json();
+  }
+  if (album == null || album === '') {
+    return _allPhotos.filter((p) => !(p.album || ''));
+  }
+  return _allPhotos.filter((p) => (p.album || '') === album);
 }
 
 function getZoomForPhoto(photo) {
