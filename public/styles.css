@@ -35,7 +35,7 @@ html {
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
   height: 100vh;
@@ -442,6 +442,19 @@ body {
 .album-picker.hidden {
   display: none;
 }
+.album-picker-title {
+  margin: 0 0 1rem;
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+}
+.album-picker-divider {
+  width: 100%;
+  margin: 0 0 1.5rem;
+  border: none;
+  border-top: 1px solid var(--border);
+}
 .album-grid {
   display: flex;
   flex-wrap: wrap;
@@ -456,6 +469,7 @@ body {
   padding: 0;
   text-align: center;
   color: inherit;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 .album-card:focus-visible {
   outline: 2px solid var(--accent);

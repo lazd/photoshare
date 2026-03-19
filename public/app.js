@@ -648,7 +648,7 @@ async function init() {
   const { album: hashAlbum } = parseHash();
 
   if (albums.length === 0) {
-    document.getElementById('albumPicker').innerHTML = '<p class="photo-placeholder">No albums yet. Add photos to subfolders in the photos/ folder.</p>';
+    document.getElementById('albumPicker').innerHTML = '<h1 class="album-picker-title">Photoshare</h1><hr class="album-picker-divider"><p class="photo-placeholder">No albums yet. Add photos to subfolders in the photos/ folder.</p>';
     document.getElementById('albumPicker').classList.remove('hidden');
     document.getElementById('albumView').classList.add('hidden');
     return;
