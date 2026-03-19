@@ -8,6 +8,10 @@ import { insertPhoto, photoExistsByPath, getAllPhotos, updatePhotoThumbnail } fr
 
 const PHOTOS_DIR = join(process.cwd(), 'photos');
 const CONVERTED_DIR = join(process.cwd(), 'converted');
+const FULL_SIZE = 1440;
+const FULL_SIZE_QUALITY = 80;
+const THUMBNAIL_SIZE = 320;
+const THUMBNAIL_SIZE_QUALITY = 70;
 
 const IMAGE_EXTENSIONS = new Set([
   '.jpg', '.jpeg', '.png', '.heic', '.heif', '.tiff', '.tif', '.webp', '.gif'
@@ -76,8 +80,8 @@ export async function processPhoto(originalPath) {
     }
 
     await Promise.all([
-      input.clone().resize(1440, 1440, resizeOptions).jpeg({ quality: 90 }).toFile(outputPath),
-      input.clone().resize(480, 480, resizeOptions).jpeg({ quality: 80 }).toFile(thumbnailPath)
+      input.clone().resize(FULL_SIZE, FULL_SIZE, resizeOptions).jpeg({ quality: FULL_SIZE_QUALITY }).toFile(outputPath),
+      input.clone().resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, resizeOptions).jpeg({ quality: THUMBNAIL_SIZE_QUALITY }).toFile(thumbnailPath)
     ]);
   } catch (err) {
     console.error(`Failed to convert ${resolvedPath}:`, err.message);
@@ -107,8 +111,8 @@ export async function syncThumbnails() {
       const convertedPath = join(CONVERTED_DIR, photo.converted_filename);
       const thumbnailPath = join(CONVERTED_DIR, thumbnailFilename);
       await sharp(convertedPath)
-        .resize(480, 480, resizeOptions)
-        .jpeg({ quality: 80 })
+        .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, resizeOptions)
+        .jpeg({ quality: THUMBNAIL_SIZE_QUALITY })
         .toFile(thumbnailPath);
       updatePhotoThumbnail(photo.id, thumbnailFilename);
       generated++;
