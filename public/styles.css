@@ -257,33 +257,6 @@ body {
   background: var(--button-bg-active);
 }
 
-.map-minimize-btn {
-  position: absolute;
-  z-index: 10000;
-  bottom: 8px;
-  right: 24px;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-}
-.map-minimize-btn .map-btn-icon {
-  width: 18px;
-  height: 18px;
-}
-.map-minimize-btn .map-btn-maximize {
-  display: none;
-}
-.map-minimize-btn.map-minimized .map-btn-minimize {
-  display: none;
-}
-.map-minimize-btn.map-minimized .map-btn-maximize {
-  display: block;
-}
-.map-minimize-btn.map-minimized {
-  color: var(--button-fg-dark);
-  background: var(--button-bg-dark);
-}
-
 #map {
   width: 100%;
   height: 100%;
