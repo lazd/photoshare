@@ -12,8 +12,6 @@ let selectedPhotoId = null;
 let isTogglingFullscreen = false;
 let isScrollingToSelection = false;
 let isScrollingTimeline = false;
-let recentlyScrolledTimeline = false;
-let recentlyScrolledTimelineTimeoutId = null;
 let recentlySelectedFromTimeline = false;
 let currentMapStyle = 'map';
 let setMapStyleFn = null;
@@ -466,7 +464,7 @@ const TIMELINE_CELL_GAP = 8;
 const TIMELINE_PADDING = 8;
 
 function syncTimelineToCarousel(carousel) {
-  if (isScrollingTimeline || recentlyScrolledTimeline || recentlySelectedFromTimeline) return;
+  if (isScrollingTimeline || recentlySelectedFromTimeline) return;
   const timeline = document.querySelector('.timeline');
   if (!timeline || !carousel || photos.length <= 1) return;
   const slideWidth = carousel.offsetWidth;
@@ -699,23 +697,15 @@ async function init() {
   const timeline = document.querySelector('.timeline');
   if (timeline) {
     const startTimelineScroll = () => {
-      if (recentlyScrolledTimelineTimeoutId) {
-        clearTimeout(recentlyScrolledTimelineTimeoutId);
-        recentlyScrolledTimelineTimeoutId = null;
-      }
       isScrollingTimeline = true;
-      recentlyScrolledTimeline = true;
     };
-    const endTimelineScroll = () => {
-      isScrollingTimeline = false;
-      if (recentlyScrolledTimelineTimeoutId) clearTimeout(recentlyScrolledTimelineTimeoutId);
-      recentlyScrolledTimelineTimeoutId = setTimeout(() => {
-        recentlyScrolledTimeline = false;
-        recentlyScrolledTimelineTimeoutId = null;
-      }, 3500);
+    const onTimelineScrollEnd = () => {
+      requestAnimationFrame(() => {
+        isScrollingTimeline = false;
+      });
     };
-    timeline.addEventListener('touchstart', startTimelineScroll, { passive: true });
-    timeline.addEventListener('touchend', endTimelineScroll, { passive: true });
+    timeline.addEventListener('scroll', startTimelineScroll, { passive: true });
+    timeline.addEventListener('scrollend', onTimelineScrollEnd);
   }
 
   window.addEventListener('hashchange', applyHash);
