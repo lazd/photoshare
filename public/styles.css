@@ -30,6 +30,7 @@ html {
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
+  overflow: hidden;
 }
 
 body {
