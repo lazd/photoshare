@@ -68,13 +68,16 @@ function setMapMinimized(minimized) {
     minimizeBtn.setAttribute('aria-label', mapMinimized ? 'Maximize map' : 'Minimize map');
   }
   const menuToggleMap = document.getElementById('menuToggleMap');
-  if (menuToggleMap) menuToggleMap.textContent = mapMinimized ? 'Show map' : 'Hide map';
+  if (menuToggleMap) menuToggleMap.checked = !mapMinimized;
 }
 
 function openMenu() {
   const menuToggleMap = document.getElementById('menuToggleMap');
-  if (menuToggleMap) menuToggleMap.textContent = mapMinimized ? 'Show map' : 'Hide map';
-  document.querySelectorAll('.menu-tile-btn').forEach((b) => b.classList.toggle('active', b.dataset.style === currentMapStyle));
+  if (menuToggleMap) menuToggleMap.checked = !mapMinimized;
+  const mapTileMap = document.querySelector('input[name="mapTiles"][value="map"]');
+  const mapTileSatellite = document.querySelector('input[name="mapTiles"][value="satellite"]');
+  if (mapTileMap) mapTileMap.checked = currentMapStyle === 'map';
+  if (mapTileSatellite) mapTileSatellite.checked = currentMapStyle === 'satellite';
   document.getElementById('menuToggle')?.setAttribute('aria-expanded', 'true');
   document.getElementById('menuOverlay')?.classList.add('visible');
   document.getElementById('menuOverlay')?.setAttribute('aria-hidden', 'false');
@@ -673,13 +676,12 @@ async function init() {
     closeMenu();
     location.hash = '';
   });
-  document.getElementById('menuToggleMap')?.addEventListener('click', () => {
-    setMapMinimized(!mapMinimized);
+  document.getElementById('menuToggleMap')?.addEventListener('change', (e) => {
+    setMapMinimized(!e.target.checked);
   });
-  document.querySelectorAll('.menu-tile-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      if (setMapStyleFn && btn.dataset.style) setMapStyleFn(btn.dataset.style);
-      document.querySelectorAll('.menu-tile-btn').forEach((b) => b.classList.toggle('active', b.dataset.style === currentMapStyle));
+  document.querySelectorAll('input[name="mapTiles"]').forEach((radio) => {
+    radio.addEventListener('change', (e) => {
+      if (setMapStyleFn && e.target.value) setMapStyleFn(e.target.value);
     });
   });
 
