@@ -84,17 +84,44 @@ function buildSnapCarousel(containerEl) {
     slide.className = 'snap-carousel-slide';
     slide.dataset.photoId = photo.id;
     const img = document.createElement('img');
-    img.src = `${CONVERTED_BASE}/${photo.converted_filename}`;
+    const thumbSrc = photo.thumbnail_filename
+      ? `${CONVERTED_BASE}/${photo.thumbnail_filename}`
+      : null;
+    const fullSrc = `${CONVERTED_BASE}/${photo.converted_filename}`;
+    img.dataset.fullsrc = fullSrc;
+    img.src = thumbSrc || fullSrc;
+    if (!thumbSrc) img.dataset.loaded = '1';
     img.alt = `Photo ${photo.id}`;
-    img.loading = 'lazy';
-    img.addEventListener('load', () => {
-      const portrait = img.naturalHeight > img.naturalWidth;
-      slide.classList.toggle('photo-portrait', portrait);
-      slide.classList.toggle('photo-landscape', !portrait);
+    img.addEventListener('load', function onLoad() {
+      if (this.dataset.loaded) {
+        const portrait = this.naturalHeight > this.naturalWidth;
+        slide.classList.toggle('photo-portrait', portrait);
+        slide.classList.toggle('photo-landscape', !portrait);
+      }
     });
     slide.appendChild(img);
     containerEl.appendChild(slide);
   });
+
+  const io = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const slide = entry.target;
+        const img = slide.querySelector('img');
+        if (!img || img.dataset.loaded) continue;
+        const fullSrc = img.dataset.fullsrc;
+        if (fullSrc) {
+          img.dataset.loaded = '1';
+          img.src = fullSrc;
+        }
+      }
+    },
+    { root: containerEl, rootMargin: '100%', threshold: 0 }
+  );
+
+  containerEl.querySelectorAll('.snap-carousel-slide').forEach((slide) => io.observe(slide));
+
   return containerEl;
 }
 
