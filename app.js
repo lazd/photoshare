@@ -1,4 +1,5 @@
 const CONVERTED_BASE = 'images';
+const STATIC_CACHE_BUST = '2cc8b3791fd2';
 
 let photos = [];
 let albums = [];
@@ -96,7 +97,7 @@ function formatAlbumName(name) {
 }
 
 async function fetchAlbums() {
-  const res = await fetch('albums.json');
+  const res = await fetch(`albums.json?v=${STATIC_CACHE_BUST}`);
   if (!res.ok) throw new Error('Failed to fetch albums');
   return res.json();
 }
@@ -104,7 +105,7 @@ async function fetchAlbums() {
 let _allPhotos = null;
 async function fetchPhotos(album = null) {
   if (!_allPhotos) {
-    const res = await fetch('photos.json');
+    const res = await fetch(`photos.json?v=${STATIC_CACHE_BUST}`);
     if (!res.ok) throw new Error('Failed to fetch photos');
     _allPhotos = await res.json();
   }
