@@ -1,6 +1,7 @@
 import { mkdir, copyFile, readFile, writeFile, rm } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createHash } from 'crypto';
 import { getAllPhotosForStatic, getAlbums, getAlbumIconThumbnails } from './db.js';
 import { processAllPhotos, getConvertedDir } from './photos.js';
 
@@ -106,10 +107,30 @@ async function fetchPhotos(album = null) {
 }`
     );
 
+  const cacheBust = createHash('sha256')
+    .update(JSON.stringify(photos))
+    .update(JSON.stringify(albums))
+    .update(stylesCss)
+    .update(appJs)
+    .digest('hex')
+    .slice(0, 12);
+
+  let staticAppJsBusted = staticAppJs.replace(
+    "const CONVERTED_BASE = 'images';\n\nlet photos = [];",
+    `const CONVERTED_BASE = 'images';\nconst STATIC_CACHE_BUST = '${cacheBust}';\n\nlet photos = [];`
+  );
+  staticAppJsBusted = staticAppJsBusted
+    .replace("fetch('albums.json')", 'fetch(`albums.json?v=${STATIC_CACHE_BUST}`)')
+    .replace("fetch('photos.json')", 'fetch(`photos.json?v=${STATIC_CACHE_BUST}`)');
+
+  const indexHtmlBusted = indexHtml
+    .replace('href="styles.css"', `href="styles.css?v=${cacheBust}"`)
+    .replace('src="app.js"', `src="app.js?v=${cacheBust}"`);
+
   await Promise.all([
-    writeFile(join(OUT_DIR, 'index.html'), indexHtml),
+    writeFile(join(OUT_DIR, 'index.html'), indexHtmlBusted),
     writeFile(join(OUT_DIR, 'styles.css'), stylesCss),
-    writeFile(join(OUT_DIR, 'app.js'), staticAppJs),
+    writeFile(join(OUT_DIR, 'app.js'), staticAppJsBusted),
     writeFile(join(OUT_DIR, 'robots.txt'), 'User-agent: *\nDisallow: /\n')
   ]);
 
