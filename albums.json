@@ -42,5 +42,27 @@
         "id": 61
       }
     ]
+  },
+  {
+    "album": "Zion",
+    "count": 26,
+    "thumbnails": [
+      {
+        "thumbnail": "images/thumb_c3e57f791348.jpg",
+        "id": 71
+      },
+      {
+        "thumbnail": "images/thumb_80ddbf698c11.jpg",
+        "id": 72
+      },
+      {
+        "thumbnail": "images/thumb_8a10d47440fb.jpg",
+        "id": 73
+      },
+      {
+        "thumbnail": "images/thumb_52d6c3f6798f.jpg",
+        "id": 74
+      }
+    ]
   }
 ]

@@ -1,5 +1,5 @@
 const CONVERTED_BASE = 'images';
-const STATIC_CACHE_BUST = '2cc8b3791fd2';
+const STATIC_CACHE_BUST = '04921b44edb3';
 
 let photos = [];
 let albums = [];
