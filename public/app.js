@@ -1,10 +1,13 @@
 const API_BASE = '';
 const PHOTOS_ENDPOINT = `${API_BASE}/api/photos`;
 const ALBUMS_ENDPOINT = `${API_BASE}/api/albums`;
+const JOURNAL_ENDPOINT = `${API_BASE}/api/journal`;
 const CONVERTED_BASE = `${API_BASE}/converted`;
 
 let photos = [];
 let albums = [];
+let journalByDate = {};
+let journalTabActive = false;
 let currentAlbum = null;
 let map = null;
 let markers = [];
@@ -110,6 +113,15 @@ async function fetchPhotos(album = null) {
     : PHOTOS_ENDPOINT;
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch photos');
+  return res.json();
+}
+
+async function fetchJournal(album = null) {
+  const url = album != null && album !== ''
+    ? `${JOURNAL_ENDPOINT}?album=${encodeURIComponent(album)}`
+    : JOURNAL_ENDPOINT;
+  const res = await fetch(url);
+  if (!res.ok) return [];
   return res.json();
 }
 
@@ -240,6 +252,86 @@ function getCarousel() {
   return document.getElementById('photoCarousel');
 }
 
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+function buildJournalIndex(entries) {
+  journalByDate = {};
+  (entries || []).forEach((e) => {
+    if (e.month == null || e.day == null) return;
+    journalByDate[`${pad2(e.month)}-${pad2(e.day)}`] = e;
+  });
+}
+
+function getJournalEntryForPhoto(photoId) {
+  const photo = photos.find((p) => p.id === photoId);
+  if (!photo) return null;
+  const dateKey = getPhotoDateKey(photo); // YYYY-MM-DD
+  if (!dateKey) return null;
+  return journalByDate[dateKey.slice(5)] || null; // keyed by MM-DD
+}
+
+function renderJournalEntry(entry) {
+  const container = document.getElementById('journalEntry');
+  if (!container) return;
+  container.innerHTML = '';
+  const title = document.createElement('h2');
+  title.className = 'journal-entry-title';
+  title.textContent = entry.title;
+  container.appendChild(title);
+  entry.body.split(/\n{2,}/).forEach((para) => {
+    const p = document.createElement('p');
+    p.className = 'journal-entry-para';
+    p.textContent = para;
+    container.appendChild(p);
+  });
+  container.scrollTop = 0;
+}
+
+function updateJournalTabButtons(showJournal) {
+  const mapBtn = document.getElementById('mapTabMap');
+  const journalBtn = document.getElementById('mapTabJournal');
+  if (mapBtn) {
+    mapBtn.classList.toggle('active', !showJournal);
+    mapBtn.setAttribute('aria-selected', String(!showJournal));
+  }
+  if (journalBtn) {
+    journalBtn.classList.toggle('active', showJournal);
+    journalBtn.setAttribute('aria-selected', String(showJournal));
+  }
+}
+
+// Reflects the current selection's journal availability: tabs appear only when
+// the selected photo's day has an entry, and the journal panel is shown when
+// the user has the journal tab active.
+function updateJournalPanel() {
+  const tabs = document.getElementById('mapTabs');
+  const panel = document.getElementById('journalPanel');
+  const mapContainer = document.querySelector('.map-container');
+  const entry = getJournalEntryForPhoto(selectedPhotoId);
+
+  if (tabs) tabs.hidden = !entry;
+
+  if (!entry) {
+    mapContainer?.classList.remove('show-journal');
+    panel?.setAttribute('aria-hidden', 'true');
+    updateJournalTabButtons(false);
+    return;
+  }
+
+  renderJournalEntry(entry);
+  const showJournal = journalTabActive;
+  mapContainer?.classList.toggle('show-journal', showJournal);
+  panel?.setAttribute('aria-hidden', String(!showJournal));
+  updateJournalTabButtons(showJournal);
+}
+
+function setJournalTab(active) {
+  journalTabActive = active;
+  updateJournalPanel();
+}
+
 function selectPhoto(photoId, opts = {}) {
   selectedPhotoId = photoId;
   const photo = photos.find((p) => p.id === photoId);
@@ -271,6 +363,7 @@ function selectPhoto(photoId, opts = {}) {
   }
 
   updateMarkerStyles();
+  updateJournalPanel();
 
   if (!opts.skipTimelineScroll) {
     const cell = document.querySelector(`.timeline-cell[data-photo-id="${photoId}"]`);
@@ -342,21 +435,56 @@ function navigatePhoto(direction) {
   selectPhoto(photos[nextIdx].id);
 }
 
+function getPhotoDateKey(photo) {
+  const raw = photo.taken_at || photo.created_at;
+  if (!raw) return null;
+  return raw.slice(0, 10);
+}
+
+function formatTimelineDate(dateKey) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  const sameYear = year === new Date().getFullYear();
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: sameYear ? undefined : 'numeric'
+  });
+}
+
 function renderTimeline() {
   const track = document.getElementById('timeline');
   track.innerHTML = '';
+
+  let prevDateKey = undefined;
 
   photos.forEach((photo) => {
     const cell = document.createElement('div');
     cell.className = 'timeline-cell';
     cell.dataset.photoId = photo.id;
 
+    const dateKey = getPhotoDateKey(photo);
+    const isNewGroup = dateKey !== prevDateKey;
+    if (isNewGroup && prevDateKey !== undefined) cell.classList.add('timeline-cell-group-start');
+    prevDateKey = dateKey;
+
+    const thumb = document.createElement('div');
+    thumb.className = 'timeline-cell-thumb';
+
     const img = document.createElement('img');
     img.src = `${CONVERTED_BASE}/${photo.thumbnail_filename || photo.converted_filename}`;
     img.alt = `Photo ${photo.id}`;
     img.loading = 'lazy';
 
-    cell.appendChild(img);
+    thumb.appendChild(img);
+    cell.appendChild(thumb);
+
+    if (isNewGroup && dateKey) {
+      const label = document.createElement('span');
+      label.className = 'timeline-date-label';
+      label.textContent = formatTimelineDate(dateKey);
+      cell.appendChild(label);
+    }
 
     cell.addEventListener('click', () => selectPhoto(photo.id, { instant: true, skipTimelineScroll: true }));
 
@@ -488,6 +616,7 @@ function setupCarouselScrollSync(scrollEl, opts = {}) {
       el.classList.toggle('selected', el.dataset.photoId === String(photoId));
     });
     updateMarkerStyles();
+    updateJournalPanel();
     if (updateHashNow) updateHash();
     if (opts.onSync && typeof opts.onSync === 'function') opts.onSync(photoId);
   }
@@ -627,9 +756,16 @@ async function selectAlbum(album) {
 }
 
 async function loadAlbum(album) {
-  photos = await fetchPhotos(album);
+  const [albumPhotos, journalEntries] = await Promise.all([
+    fetchPhotos(album),
+    fetchJournal(album)
+  ]);
+  photos = albumPhotos;
+  journalTabActive = false;
+  buildJournalIndex(journalEntries);
   renderTimeline();
   setupMap();
+  updateJournalPanel();
 
   const previewContainer = document.getElementById('photoPreview');
   if (photos.length === 0) {
@@ -692,6 +828,12 @@ async function init() {
     radio.addEventListener('change', (e) => {
       if (setMapStyleFn && e.target.value) setMapStyleFn(e.target.value);
     });
+  });
+
+  document.getElementById('mapTabs')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.map-tab');
+    if (!btn) return;
+    setJournalTab(btn.dataset.tab === 'journal');
   });
 
   const timeline = document.querySelector('.timeline');

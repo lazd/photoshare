@@ -65,6 +65,13 @@
       </section>
       <section class="map-container">
         <div id="map"></div>
+        <div class="journal-panel" id="journalPanel" aria-hidden="true">
+          <article class="journal-entry" id="journalEntry"></article>
+        </div>
+        <div class="map-tabs" id="mapTabs" role="tablist" hidden>
+          <button type="button" class="map-tab active" id="mapTabMap" role="tab" data-tab="map" aria-selected="true">Map</button>
+          <button type="button" class="map-tab" id="mapTabJournal" role="tab" data-tab="journal" aria-selected="false">Journal</button>
+        </div>
       </section>
     </main>
     <aside class="timeline">

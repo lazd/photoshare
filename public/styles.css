@@ -265,6 +265,86 @@ body {
   background: var(--bg-tertiary);
 }
 
+.map-tabs {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--button-bg);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  z-index: 5;
+}
+
+.map-tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--button-fg);
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.map-tab:hover {
+  background: var(--button-bg-hover);
+  color: var(--button-fg-hover);
+}
+
+.map-tab.active {
+  background: var(--button-bg-active);
+  color: var(--button-fg-active);
+}
+
+.journal-panel {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius-large);
+  overflow-y: auto;
+  padding: 1.5rem 1.5rem 3.75rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 4;
+}
+
+.map-container.show-journal .journal-panel {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.map-container.show-journal #map {
+  display: none;
+}
+
+.journal-entry-title {
+  margin: 0 0 0.85rem;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.journal-entry-para {
+  margin: 0 0 0.9rem;
+  color: var(--text-primary);
+  line-height: 1.65;
+  white-space: pre-line;
+}
+
+.journal-entry-para:last-child {
+  margin-bottom: 0;
+}
+
 .map-layer-btn {
   border-radius: 0;
   box-shadow: none;
@@ -324,7 +404,7 @@ body {
 .timeline-track {
   display: flex;
   gap: 0.5rem;
-  align-items: center;
+  align-items: flex-start;
   min-width: min-content;
 }
 
@@ -335,28 +415,46 @@ body {
 .timeline-cell {
   flex-shrink: 0;
   width: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+}
+
+.timeline-cell.timeline-cell-group-start {
+  margin-left: 0.5rem;
+}
+
+.timeline-cell-thumb {
+  width: 80px;
   height: 80px;
   border-radius: 6px;
   overflow: hidden;
-  cursor: pointer;
   border: 2px solid transparent;
   transition: border-color 0.2s, box-shadow 0.15s;
 }
 
-.timeline-cell:hover {
+.timeline-cell:hover .timeline-cell-thumb {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
-.timeline-cell.selected {
+.timeline-cell.selected .timeline-cell-thumb {
   outline: 3px solid var(--highlight-border);
   outline-offset: 2px;
 }
 
-.timeline-cell img {
+.timeline-cell-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.timeline-date-label {
+  margin-top: 4px;
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .maplibregl-ctrl-compass,

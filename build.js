@@ -2,7 +2,7 @@ import { mkdir, copyFile, readFile, writeFile, rm } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
-import { getAllPhotosForStatic, getAlbums, getAlbumIconThumbnails } from './db.js';
+import { getAllPhotosForStatic, getAlbums, getAlbumIconThumbnails, getAllJournalEntries } from './db.js';
 import { processAllPhotos, getConvertedDir } from './photos.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -35,6 +35,8 @@ async function build() {
     };
   });
 
+  const journal = getAllJournalEntries();
+
   console.log(`Building static site with ${photos.length} photos...`);
 
   await rm(OUT_DIR, { recursive: true }).catch(() => {});
@@ -58,7 +60,8 @@ async function build() {
 
   await Promise.all([
     writeFile(join(OUT_DIR, 'photos.json'), JSON.stringify(photos, null, 2)),
-    writeFile(join(OUT_DIR, 'albums.json'), JSON.stringify(albums, null, 2))
+    writeFile(join(OUT_DIR, 'albums.json'), JSON.stringify(albums, null, 2)),
+    writeFile(join(OUT_DIR, 'journal.json'), JSON.stringify(journal, null, 2))
   ]);
 
   const [indexHtml, stylesCss, appJs] = await Promise.all([
@@ -69,7 +72,7 @@ async function build() {
 
   const staticAppJs = appJs
     .replace(
-      "const API_BASE = '';\nconst PHOTOS_ENDPOINT = `${API_BASE}/api/photos`;\nconst ALBUMS_ENDPOINT = `${API_BASE}/api/albums`;\nconst CONVERTED_BASE = `${API_BASE}/converted`;",
+      "const API_BASE = '';\nconst PHOTOS_ENDPOINT = `${API_BASE}/api/photos`;\nconst ALBUMS_ENDPOINT = `${API_BASE}/api/albums`;\nconst JOURNAL_ENDPOINT = `${API_BASE}/api/journal`;\nconst CONVERTED_BASE = `${API_BASE}/converted`;",
       "const CONVERTED_BASE = 'images';"
     )
     .replace(
@@ -105,11 +108,31 @@ async function fetchPhotos(album = null) {
   }
   return _allPhotos.filter((p) => (p.album || '') === album);
 }`
+    )
+    .replace(
+      `async function fetchJournal(album = null) {
+  const url = album != null && album !== ''
+    ? \`\${JOURNAL_ENDPOINT}?album=\${encodeURIComponent(album)}\`
+    : JOURNAL_ENDPOINT;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  return res.json();
+}`,
+      `let _allJournal = null;
+async function fetchJournal(album = null) {
+  if (!_allJournal) {
+    const res = await fetch('journal.json');
+    _allJournal = res.ok ? await res.json() : [];
+  }
+  const a = album || '';
+  return _allJournal.filter((e) => (e.album || '') === a);
+}`
     );
 
   const cacheBust = createHash('sha256')
     .update(JSON.stringify(photos))
     .update(JSON.stringify(albums))
+    .update(JSON.stringify(journal))
     .update(stylesCss)
     .update(appJs)
     .digest('hex')
@@ -121,7 +144,8 @@ async function fetchPhotos(album = null) {
   );
   staticAppJsBusted = staticAppJsBusted
     .replace("fetch('albums.json')", 'fetch(`albums.json?v=${STATIC_CACHE_BUST}`)')
-    .replace("fetch('photos.json')", 'fetch(`photos.json?v=${STATIC_CACHE_BUST}`)');
+    .replace("fetch('photos.json')", 'fetch(`photos.json?v=${STATIC_CACHE_BUST}`)')
+    .replace("fetch('journal.json')", 'fetch(`journal.json?v=${STATIC_CACHE_BUST}`)');
 
   const indexHtmlBusted = indexHtml
     .replace('href="styles.css"', `href="styles.css?v=${cacheBust}"`)

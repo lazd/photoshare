@@ -3,7 +3,7 @@ import { join, dirname, resolve, basename, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { readFile, unlink, access } from 'fs/promises';
 import chokidar from 'chokidar';
-import { getAllPhotos, getPhotoByPath, getPhotoByFilename, deletePhotoByPath, getAlbums, getAlbumIconThumbnails } from './db.js';
+import { getAllPhotos, getPhotoByPath, getPhotoByFilename, deletePhotoByPath, getAlbums, getAlbumIconThumbnails, getJournalEntries } from './db.js';
 import { processPhoto, processAllPhotos, getPhotosDir, getConvertedDir } from './photos.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -64,6 +64,16 @@ app.get('/api/photos', (req, res) => {
   }
 });
 
+app.get('/api/journal', (req, res) => {
+  try {
+    const album = req.query.album ?? null;
+    res.json(getJournalEntries(album));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch journal' });
+  }
+});
+
 async function syncDeletedPhotos() {
   const photos = getAllPhotos();
   let removed = 0;
@@ -102,6 +112,7 @@ async function start() {
   const processed = await processAllPhotos();
   console.log(`Processed ${processed} new photos.`);
 
+  /*
   const watcher = chokidar.watch(photosDir, {
     persistent: true,
     ignoreInitial: true
@@ -151,6 +162,7 @@ async function start() {
       console.error('Error removing photo', filePath, err);
     }
   });
+  */
 
   app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);

@@ -4,7 +4,8 @@ import exifr from 'exifr';
 import sharp from 'sharp';
 import heicConvert from 'heic-convert';
 import { createHash } from 'crypto';
-import { insertPhoto, photoExistsByPath, getAllPhotos, updatePhotoThumbnail, updatePhotoAlbum } from './db.js';
+import { insertPhoto, photoExistsByPath, getAllPhotos, updatePhotoThumbnail, updatePhotoAlbum, updatePhotoTakenAt, getPhotosWithUtcTakenAt, replaceJournalEntries } from './db.js';
+import { parseJournal } from './journal.js';
 
 const PHOTOS_DIR = join(process.cwd(), 'photos');
 const CONVERTED_DIR = join(process.cwd(), 'converted');
@@ -16,6 +17,38 @@ const THUMBNAIL_SIZE_QUALITY = 70;
 const IMAGE_EXTENSIONS = new Set([
   '.jpg', '.jpeg', '.png', '.heic', '.heif', '.tiff', '.tif', '.webp', '.gif'
 ]);
+
+// EXIF DateTimeOriginal is recorded as the local wall-clock time in the photo's
+// own timezone ("YYYY:MM:DD HH:MM:SS"). We keep it as a naive local timestamp so
+// dates group by the day the photo was actually taken, rather than shifting a UTC
+// conversion into an adjacent day.
+function exifDateToLocalIso(raw) {
+  if (!raw) return null;
+  if (raw instanceof Date) {
+    // Fallback for revived values: format in local components, not UTC.
+    if (isNaN(raw)) return null;
+    const p = (n) => String(n).padStart(2, '0');
+    return `${raw.getFullYear()}-${p(raw.getMonth() + 1)}-${p(raw.getDate())}T${p(raw.getHours())}:${p(raw.getMinutes())}:${p(raw.getSeconds())}`;
+  }
+  const m = String(raw).match(/^(\d{4})[:-](\d{2})[:-](\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+  if (!m) return null;
+  const [, y, mo, d, h, mi, s] = m;
+  return `${y}-${mo}-${d}T${h}:${mi}:${s}`;
+}
+
+// Reads the raw (non-revived) EXIF capture date so no timezone conversion is
+// applied. Returns a local ISO string or null.
+async function readTakenAtLocal(resolvedPath) {
+  try {
+    const raw = await exifr.parse(resolvedPath, {
+      pick: ['DateTimeOriginal', 'CreateDate'],
+      reviveValues: false
+    }).catch(() => ({}));
+    return exifDateToLocalIso(raw?.DateTimeOriginal ?? raw?.CreateDate);
+  } catch (_) {
+    return null;
+  }
+}
 
 async function ensureDir(dir) {
   try {
@@ -47,7 +80,7 @@ export async function processPhoto(originalPath, album = '') {
 
   let metadata = {};
   try {
-    metadata = await exifr.parse(resolvedPath, { pick: ['GPSLatitude', 'GPSLongitude', 'DateTimeOriginal', 'CreateDate'] })
+    metadata = await exifr.parse(resolvedPath, { pick: ['GPSLatitude', 'GPSLongitude'] })
       .catch(() => ({}));
   } catch (_) {}
 
@@ -58,7 +91,7 @@ export async function processPhoto(originalPath, album = '') {
 
   const latitude = gps?.latitude ?? metadata?.GPSLatitude ?? null;
   const longitude = gps?.longitude ?? metadata?.GPSLongitude ?? null;
-  const takenAt = (metadata?.DateTimeOriginal ?? metadata?.CreateDate)?.toISOString?.() ?? null;
+  const takenAt = await readTakenAtLocal(resolvedPath);
 
   const isHeic = ['.heic', '.heif'].includes(ext);
   const resizeOptions = { fit: 'inside', withoutEnlargement: true };
@@ -157,7 +190,77 @@ export async function processAllPhotos() {
   }
 
   const thumbGenerated = await syncThumbnails();
+  await resyncTakenAtTimezone();
+  await syncJournals();
   return processed + thumbGenerated;
+}
+
+// One-time migration: re-derive taken_at for photos previously stored as a UTC
+// instant so they group by their local capture date. Skips files that are gone.
+export async function resyncTakenAtTimezone() {
+  const stale = getPhotosWithUtcTakenAt();
+  let updated = 0;
+  for (const { id, original_path } of stale) {
+    const local = await readTakenAtLocal(original_path);
+    if (local) {
+      updatePhotoTakenAt(id, local);
+      updated++;
+    }
+  }
+  if (updated > 0) console.log(`Re-derived local capture dates for ${updated} photos.`);
+  return updated;
+}
+
+const JOURNAL_FILENAME = 'journal.txt';
+
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+// Resolves a concrete YYYY-MM-DD for an entry: uses the header's explicit year
+// when present, otherwise borrows the year from an album photo taken on the
+// same month/day. Returns null when no year can be determined.
+function resolveEntryDate(entry, albumPhotos) {
+  let year = entry.year;
+  if (year == null) {
+    const match = albumPhotos.find((p) => {
+      const d = (p.taken_at || '').slice(0, 10);
+      if (!d) return false;
+      const [, mm, dd] = d.split('-').map(Number);
+      return mm === entry.month && dd === entry.day;
+    });
+    if (match) year = Number(match.taken_at.slice(0, 4));
+  }
+  if (year == null) return null;
+  return `${year}-${pad2(entry.month)}-${pad2(entry.day)}`;
+}
+
+// Finds every journal.txt under the photos directory and syncs its entries
+// into the database, associating each entry with a resolved date.
+export async function syncJournals() {
+  await ensureDir(PHOTOS_DIR);
+  const files = (await walkPhotos(PHOTOS_DIR)).filter(
+    (f) => f.path.toLowerCase().endsWith('/' + JOURNAL_FILENAME) ||
+      f.path.toLowerCase().endsWith('\\' + JOURNAL_FILENAME)
+  );
+
+  const seenAlbums = new Set();
+  for (const { path: filePath, album } of files) {
+    seenAlbums.add(album);
+    try {
+      const text = await readFile(filePath, 'utf-8');
+      const entries = parseJournal(text);
+      const albumPhotos = getAllPhotos(album);
+      const withDates = entries.map((e) => ({
+        ...e,
+        entry_date: resolveEntryDate(e, albumPhotos)
+      }));
+      replaceJournalEntries(album, withDates);
+    } catch (err) {
+      console.error(`Failed to parse journal ${filePath}:`, err.message);
+    }
+  }
+  return seenAlbums.size;
 }
 
 export function getPhotosDir() {

@@ -22,6 +22,18 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_photos_taken_at ON photos(taken_at);
   CREATE INDEX IF NOT EXISTS idx_photos_coords ON photos(latitude, longitude);
   CREATE INDEX IF NOT EXISTS idx_photos_album ON photos(album);
+
+  CREATE TABLE IF NOT EXISTS journal (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    album TEXT NOT NULL DEFAULT '',
+    month INTEGER NOT NULL,
+    day INTEGER NOT NULL,
+    entry_date TEXT,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    UNIQUE(album, month, day)
+  );
+  CREATE INDEX IF NOT EXISTS idx_journal_album ON journal(album);
 `);
 
 try {
@@ -121,6 +133,60 @@ export function updatePhotoThumbnail(id, thumbnailFilename) {
 export function updatePhotoAlbum(originalPath, album) {
   const stmt = db.prepare('UPDATE photos SET album = ? WHERE original_path = ?');
   return stmt.run(album ?? '', originalPath);
+}
+
+export function updatePhotoTakenAt(id, takenAt) {
+  const stmt = db.prepare('UPDATE photos SET taken_at = ? WHERE id = ?');
+  return stmt.run(takenAt, id);
+}
+
+// Rows whose taken_at was stored as a UTC instant (ending in 'Z') predate the
+// switch to local wall-clock timestamps and need re-deriving from EXIF.
+export function getPhotosWithUtcTakenAt() {
+  const stmt = db.prepare("SELECT id, original_path FROM photos WHERE taken_at LIKE '%Z'");
+  return stmt.all();
+}
+
+// Replaces all journal entries for an album with the given set, keeping the
+// table in sync with the source journal.txt file.
+export function replaceJournalEntries(album, entries) {
+  const albumVal = album ?? '';
+  const del = db.prepare('DELETE FROM journal WHERE album = ?');
+  const insert = db.prepare(`
+    INSERT INTO journal (album, month, day, entry_date, title, body)
+    VALUES (@album, @month, @day, @entry_date, @title, @body)
+  `);
+  const tx = db.transaction((rows) => {
+    del.run(albumVal);
+    for (const row of rows) {
+      insert.run({
+        album: albumVal,
+        month: row.month,
+        day: row.day,
+        entry_date: row.entry_date ?? null,
+        title: row.title,
+        body: row.body
+      });
+    }
+  });
+  tx(entries);
+}
+
+export function getJournalEntries(album = null) {
+  const cols = 'album, month, day, entry_date, title, body';
+  const stmt = db.prepare(`
+    SELECT ${cols} FROM journal WHERE COALESCE(album, '') = ?
+    ORDER BY month ASC, day ASC
+  `);
+  return stmt.all(album ?? '');
+}
+
+export function getAllJournalEntries() {
+  const stmt = db.prepare(`
+    SELECT album, month, day, entry_date, title, body FROM journal
+    ORDER BY album ASC, month ASC, day ASC
+  `);
+  return stmt.all();
 }
 
 export default db;
