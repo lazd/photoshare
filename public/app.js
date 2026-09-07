@@ -283,10 +283,10 @@ function getJournalEntryForPhoto(photoId) {
   return journalByDate[dateKey.slice(5)] || null; // keyed by MM-DD
 }
 
-function makeJournalBtn(action, label) {
+function makeJournalBtn(action, label, primary) {
   const b = document.createElement('button');
   b.type = 'button';
-  b.className = 'journal-tool-btn';
+  b.className = 'journal-tool-btn' + (primary ? ' primary' : '');
   b.dataset.action = action;
   b.textContent = label;
   return b;
@@ -310,8 +310,8 @@ function renderJournalEntry(entry) {
   if (journalEditing) {
     const actions = document.createElement('div');
     actions.className = 'journal-entry-actions';
-    actions.appendChild(makeJournalBtn('save', 'Save'));
     actions.appendChild(makeJournalBtn('cancel', 'Cancel'));
+    actions.appendChild(makeJournalBtn('save', 'Save', true));
     header.appendChild(actions);
   }
   container.appendChild(header);

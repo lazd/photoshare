@@ -5,7 +5,9 @@
   --text-primary: #e6edf3;
   --text-secondary: #8b949e;
   --button-bg: #fff;
+  --button-bg-cta: #1e83b9;
   --button-fg: #424242;
+  --button-fg-cta: #e9f2f8;
   --button-bg-hover: #e0e0e0;
   --button-fg-hover: #151515;
   --button-bg-active: #aeaeae;
@@ -279,10 +281,19 @@ body {
   z-index: 5;
 }
 
+.show-journal .map-tabs {
+  background: var(--button-bg-dark);
+}
+
+.show-journal .map-tab {
+  background: var(--button-bg-dark);
+  color: var(--button-fg-dark);
+}
+
 .map-tab {
   appearance: none;
   border: none;
-  background: transparent;
+  background: var(--button-bg);
   color: var(--button-fg);
   font: inherit;
   font-size: 0.8rem;
@@ -354,9 +365,14 @@ body {
   line-height: 1;
   padding: 6px 14px;
   border-radius: 6px;
-  background: var(--button-bg);
-  color: var(--button-fg);
+  background: var(--button-bg-dark);
+  color: var(--button-fg-dark);
   transition: background 0.15s, color 0.15s;
+}
+
+.journal-tool-btn.primary {
+  background: var(--button-bg-cta);
+  color: var(--button-fg-cta);
 }
 
 .journal-tool-btn:hover {
