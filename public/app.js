@@ -618,9 +618,14 @@ function setupMap() {
   }
 }
 
-const TIMELINE_CELL_WIDTH = 80;
-const TIMELINE_CELL_GAP = 8;
-const TIMELINE_PADDING = 8;
+// Content-space center of a timeline cell (its offset within the scrollable
+// track), measured from the live layout so it accounts for per-group margins,
+// padding, and variable label widths rather than assuming a uniform grid.
+function timelineCellCenter(timeline, cell) {
+  const tRect = timeline.getBoundingClientRect();
+  const cRect = cell.getBoundingClientRect();
+  return timeline.scrollLeft + (cRect.left - tRect.left) + cRect.width / 2;
+}
 
 function syncTimelineToCarousel(carousel) {
   if (isScrollingTimeline || recentlySelectedFromTimeline) return;
@@ -628,8 +633,14 @@ function syncTimelineToCarousel(carousel) {
   if (!timeline || !carousel || photos.length <= 1) return;
   const slideWidth = carousel.offsetWidth;
   if (slideWidth <= 0) return;
+  const cells = timeline.querySelectorAll('.timeline-cell');
+  if (cells.length === 0) return;
   const f = getCarouselFractionalIndex(carousel);
-  const cellCenter = TIMELINE_PADDING + f * (TIMELINE_CELL_WIDTH + TIMELINE_CELL_GAP) + TIMELINE_CELL_WIDTH / 2;
+  const i0 = Math.max(0, Math.min(cells.length - 1, Math.floor(f)));
+  const i1 = Math.min(cells.length - 1, i0 + 1);
+  const c0 = timelineCellCenter(timeline, cells[i0]);
+  const c1 = timelineCellCenter(timeline, cells[i1]);
+  const cellCenter = c0 + (c1 - c0) * (f - i0); // interpolate as we scroll between photos
   const targetScroll = Math.max(0, Math.min(
     Math.max(0, timeline.scrollWidth - timeline.offsetWidth),
     cellCenter - timeline.offsetWidth / 2
