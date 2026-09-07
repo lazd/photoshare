@@ -327,13 +327,22 @@ body {
   display: none;
 }
 
-.journal-toolbar {
+/* Date headline holds the Save/Cancel buttons inline while editing. A fixed
+   min-height reserves the button's height in both modes so entering edit mode
+   never shifts the body text. */
+.journal-entry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  margin: 0 0 0.85rem;
+}
+
+.journal-entry-actions {
   flex: 0 0 auto;
   display: flex;
-  justify-content: flex-end;
   gap: 8px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
 }
 
 .journal-tool-btn {
@@ -343,7 +352,7 @@ body {
   font: inherit;
   font-size: 0.8rem;
   line-height: 1;
-  padding: 7px 14px;
+  padding: 6px 14px;
   border-radius: 6px;
   background: var(--button-bg);
   color: var(--button-fg);
@@ -363,26 +372,36 @@ body {
 .journal-entry {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   padding: 1.25rem 1.5rem 3.75rem;
 }
 
+.journal-entry.editable {
+  cursor: text;
+}
+
+/* Seamless with the rendered text: no padding/border/background so clicking to
+   edit swaps paragraphs for the textarea without any layout shift. */
 .journal-editor {
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
   box-sizing: border-box;
-  min-height: 55vh;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
   font: inherit;
-  line-height: 1.6;
-  resize: vertical;
+  line-height: 1.65;
+  resize: none;
 }
 
 .journal-entry-title {
-  margin: 0 0 0.85rem;
+  margin: 0;
   font-size: 1.3rem;
   font-weight: 600;
   color: var(--text-primary);

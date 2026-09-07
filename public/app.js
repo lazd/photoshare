@@ -283,14 +283,38 @@ function getJournalEntryForPhoto(photoId) {
   return journalByDate[dateKey.slice(5)] || null; // keyed by MM-DD
 }
 
+function makeJournalBtn(action, label) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'journal-tool-btn';
+  b.dataset.action = action;
+  b.textContent = label;
+  return b;
+}
+
 function renderJournalEntry(entry) {
   const container = document.getElementById('journalEntry');
   if (!container) return;
   container.innerHTML = '';
+  container.classList.toggle('editable', !journalEditing && !isStaticBuild());
+
+  // Date headline, with the Save/Cancel buttons inline (only while editing).
+  // Keeping them in the header — which is present in both modes — avoids any
+  // layout shift when entering edit mode.
+  const header = document.createElement('div');
+  header.className = 'journal-entry-header';
   const title = document.createElement('h2');
   title.className = 'journal-entry-title';
   title.textContent = entry.title;
-  container.appendChild(title);
+  header.appendChild(title);
+  if (journalEditing) {
+    const actions = document.createElement('div');
+    actions.className = 'journal-entry-actions';
+    actions.appendChild(makeJournalBtn('save', 'Save'));
+    actions.appendChild(makeJournalBtn('cancel', 'Cancel'));
+    header.appendChild(actions);
+  }
+  container.appendChild(header);
 
   if (journalEditing) {
     const editor = document.createElement('textarea');
@@ -313,38 +337,15 @@ function renderJournalEntry(entry) {
   container.scrollTop = 0;
 }
 
-function renderJournalToolbar() {
-  const bar = document.getElementById('journalToolbar');
-  if (!bar) return;
-  bar.innerHTML = '';
-  const mk = (action, label) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'journal-tool-btn';
-    b.dataset.action = action;
-    b.textContent = label;
-    return b;
-  };
-  if (journalEditing) {
-    bar.appendChild(mk('save', 'Save'));
-    bar.appendChild(mk('cancel', 'Cancel'));
-  } else {
-    if (!isStaticBuild()) bar.appendChild(mk('edit', 'Edit'));
-    bar.appendChild(mk('download', 'Download'));
-  }
-}
-
 function enterJournalEdit() {
   if (!currentJournalEntry || isStaticBuild()) return;
   journalEditing = true;
-  renderJournalToolbar();
   renderJournalEntry(currentJournalEntry);
 }
 
 function cancelJournalEdit() {
   if (!journalEditing) return;
   journalEditing = false;
-  renderJournalToolbar();
   if (currentJournalEntry) renderJournalEntry(currentJournalEntry);
 }
 
@@ -362,36 +363,13 @@ async function saveJournalEdit() {
       body: JSON.stringify({ album: currentAlbum ?? '', month: entry.month, day: entry.day, body })
     });
     if (!res.ok) throw new Error('server returned ' + res.status);
-    entry.body = body; // reflect the saved text in the in-memory index (used for download)
+    entry.body = body; // reflect the saved text in the in-memory index
     journalEditing = false;
-    renderJournalToolbar();
     renderJournalEntry(entry);
   } catch (err) {
     if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
     alert('Could not save journal entry: ' + err.message);
   }
-}
-
-// Reassembles a journal.txt from the current (edited) entries, in date order.
-function buildJournalText() {
-  const entries = Object.values(journalByDate).slice().sort((a, b) => {
-    const da = a.entry_date || `0000-${pad2(a.month)}-${pad2(a.day)}`;
-    const db = b.entry_date || `0000-${pad2(b.month)}-${pad2(b.day)}`;
-    return da < db ? -1 : da > db ? 1 : 0;
-  });
-  return entries.map((e) => `${e.title}\n${e.body}`).join('\n\n') + '\n';
-}
-
-function downloadJournal() {
-  const blob = new Blob([buildJournalText()], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'journal.txt';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function updateJournalTabButtons(showJournal) {
@@ -431,7 +409,6 @@ function updateJournalPanel() {
   if (entry !== currentJournalEntry) {
     journalEditing = false; // discard any unsaved edit when moving to another day
     currentJournalEntry = entry;
-    renderJournalToolbar();
     renderJournalEntry(entry);
   }
   const showJournal = journalTabActive;
@@ -988,14 +965,15 @@ async function init() {
     setJournalTab(btn.dataset.tab === 'journal');
   });
 
-  document.getElementById('journalToolbar')?.addEventListener('click', (e) => {
+  // Save/Cancel live in the date header; clicking the text elsewhere edits.
+  document.getElementById('journalEntry')?.addEventListener('click', (e) => {
     const btn = e.target.closest('.journal-tool-btn');
-    if (!btn) return;
-    const action = btn.dataset.action;
-    if (action === 'edit') enterJournalEdit();
-    else if (action === 'cancel') cancelJournalEdit();
-    else if (action === 'save') saveJournalEdit();
-    else if (action === 'download') downloadJournal();
+    if (btn) {
+      if (btn.dataset.action === 'save') saveJournalEdit();
+      else if (btn.dataset.action === 'cancel') cancelJournalEdit();
+      return;
+    }
+    if (!journalEditing) enterJournalEdit();
   });
 
   const timeline = document.querySelector('.timeline');
