@@ -15,6 +15,7 @@ let selectedPhotoId = null;
 let isTogglingFullscreen = false;
 let isScrollingToSelection = false;
 let isScrollingTimeline = false;
+let isKeyboardNavigating = false;
 let recentlySelectedFromTimeline = false;
 let currentMapStyle = 'map';
 let setMapStyleFn = null;
@@ -256,8 +257,11 @@ function pad2(n) {
   return String(n).padStart(2, '0');
 }
 
+let currentJournalEntry = null;
+
 function buildJournalIndex(entries) {
   journalByDate = {};
+  currentJournalEntry = null;
   (entries || []).forEach((e) => {
     if (e.month == null || e.day == null) return;
     journalByDate[`${pad2(e.month)}-${pad2(e.day)}`] = e;
@@ -314,13 +318,19 @@ function updateJournalPanel() {
   if (tabs) tabs.hidden = !entry;
 
   if (!entry) {
+    currentJournalEntry = null;
     mapContainer?.classList.remove('show-journal');
     panel?.setAttribute('aria-hidden', 'true');
     updateJournalTabButtons(false);
     return;
   }
 
-  renderJournalEntry(entry);
+  // Only rebuild the journal DOM when the entry actually changes (e.g. crossing
+  // to a new day), not on every selection within the same day.
+  if (entry !== currentJournalEntry) {
+    currentJournalEntry = entry;
+    renderJournalEntry(entry);
+  }
   const showJournal = journalTabActive;
   mapContainer?.classList.toggle('show-journal', showJournal);
   panel?.setAttribute('aria-hidden', String(!showJournal));
@@ -330,6 +340,33 @@ function updateJournalPanel() {
 function setJournalTab(active) {
   journalTabActive = active;
   updateJournalPanel();
+}
+
+function flyMapToPhotoObj(photo) {
+  if (!photo || photo.latitude == null || photo.longitude == null || !map) return;
+  const zoom = getZoomForPhoto(photo);
+  const center = map.getCenter();
+  const dist = Math.hypot(photo.latitude - center.lat, photo.longitude - center.lng);
+  const duration = Math.min(1.5, Math.max(0.25, 0.25 + (dist / 0.1) * 1.25));
+  map.flyTo({
+    center: [photo.longitude, photo.latitude],
+    zoom,
+    duration: duration * 1000,
+    essential: true
+  });
+}
+
+// Keyboard navigation can fire faster than the carousel finishes scrolling, so
+// the expensive per-step work (map fly + hash update) is deferred until the
+// user pauses. Only the lightweight carousel/timeline glide runs on each press.
+let navSettleTimer = null;
+function scheduleNavSettle() {
+  clearTimeout(navSettleTimer);
+  navSettleTimer = setTimeout(() => {
+    isKeyboardNavigating = false;
+    flyMapToPhotoObj(photos.find((p) => p.id === selectedPhotoId));
+    updateHash();
+  }, 150);
 }
 
 function selectPhoto(photoId, opts = {}) {
@@ -349,18 +386,7 @@ function selectPhoto(photoId, opts = {}) {
     setTimeout(() => { isScrollingToSelection = false; }, 800);
   }
 
-  if (photo.latitude != null && photo.longitude != null && map) {
-    const zoom = getZoomForPhoto(photo);
-    const center = map.getCenter();
-    const dist = Math.hypot(photo.latitude - center.lat, photo.longitude - center.lng);
-    const duration = Math.min(1.5, Math.max(0.25, 0.25 + (dist / 0.1) * 1.25));
-    map.flyTo({
-      center: [photo.longitude, photo.latitude],
-      zoom,
-      duration: duration * 1000,
-      essential: true
-    });
-  }
+  if (!opts.skipMapFly) flyMapToPhotoObj(photo);
 
   updateMarkerStyles();
   updateJournalPanel();
@@ -432,7 +458,12 @@ function navigatePhoto(direction) {
   if (idx === -1) return;
   const nextIdx = direction === 'prev' ? idx - 1 : idx + 1;
   if (nextIdx < 0 || nextIdx >= photos.length) return;
-  selectPhoto(photos[nextIdx].id);
+  // Jump instantly to the target: with CSS scroll-snap, repeated smooth scrolls
+  // fight the snap and get pulled back to the current photo when pressing fast.
+  // Map fly + hash are deferred to when the user pauses (scheduleNavSettle).
+  isKeyboardNavigating = true;
+  selectPhoto(photos[nextIdx].id, { instant: true, skipMapFly: true, skipHashUpdate: true });
+  scheduleNavSettle();
 }
 
 function getPhotoDateKey(photo) {
@@ -646,6 +677,10 @@ function setupCarouselScrollSync(scrollEl, opts = {}) {
   }
 
   function onCarouselScroll() {
+    // While selectPhoto is animating the carousel, it also owns the timeline
+    // position (via scrollIntoView). Syncing the timeline from these scroll
+    // events here would fight that animation and make navigation jerky.
+    if (isScrollingToSelection) return;
     const photoId = getPhotoAtScrollPosition(scrollEl);
     syncTimelineToCarousel(scrollEl);
     syncSelection(photoId, false);
@@ -654,6 +689,9 @@ function setupCarouselScrollSync(scrollEl, opts = {}) {
   function onCarouselScrollEnd() {
     isScrollingToSelection = false;
     if (isTogglingFullscreen) return;
+    // Keyboard nav owns the selection and defers map/hash to scheduleNavSettle;
+    // the instant per-press scrolls each fire scrollend, so don't act on them.
+    if (isKeyboardNavigating) return;
     const photoId = getPhotoAtScrollPosition(scrollEl);
     syncTimelineToCarousel(scrollEl);
     syncSelection(photoId, false);
