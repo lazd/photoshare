@@ -172,6 +172,14 @@ export function replaceJournalEntries(album, entries) {
   tx(entries);
 }
 
+export function updateJournalEntry(album, month, day, body) {
+  const stmt = db.prepare(`
+    UPDATE journal SET body = @body
+    WHERE COALESCE(album, '') = @album AND month = @month AND day = @day
+  `);
+  return stmt.run({ album: album ?? '', month, day, body });
+}
+
 export function getJournalEntries(album = null) {
   const cols = 'album, month, day, entry_date, title, body';
   const stmt = db.prepare(`

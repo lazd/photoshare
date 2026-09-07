@@ -258,10 +258,17 @@ function pad2(n) {
 }
 
 let currentJournalEntry = null;
+let journalEditing = false;
+
+// True only in the static (deployed) build, which has no backend to save to.
+function isStaticBuild() {
+  return typeof STATIC_CACHE_BUST !== 'undefined';
+}
 
 function buildJournalIndex(entries) {
   journalByDate = {};
   currentJournalEntry = null;
+  journalEditing = false;
   (entries || []).forEach((e) => {
     if (e.month == null || e.day == null) return;
     journalByDate[`${pad2(e.month)}-${pad2(e.day)}`] = e;
@@ -284,13 +291,107 @@ function renderJournalEntry(entry) {
   title.className = 'journal-entry-title';
   title.textContent = entry.title;
   container.appendChild(title);
-  entry.body.split(/\n{2,}/).forEach((para) => {
-    const p = document.createElement('p');
-    p.className = 'journal-entry-para';
-    p.textContent = para;
-    container.appendChild(p);
-  });
+
+  if (journalEditing) {
+    const editor = document.createElement('textarea');
+    editor.className = 'journal-editor';
+    editor.id = 'journalEditor';
+    editor.value = entry.body;
+    container.appendChild(editor);
+    requestAnimationFrame(() => editor.focus());
+    editor.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); cancelJournalEdit(); }
+    });
+  } else {
+    entry.body.split(/\n{2,}/).forEach((para) => {
+      const p = document.createElement('p');
+      p.className = 'journal-entry-para';
+      p.textContent = para;
+      container.appendChild(p);
+    });
+  }
   container.scrollTop = 0;
+}
+
+function renderJournalToolbar() {
+  const bar = document.getElementById('journalToolbar');
+  if (!bar) return;
+  bar.innerHTML = '';
+  const mk = (action, label) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'journal-tool-btn';
+    b.dataset.action = action;
+    b.textContent = label;
+    return b;
+  };
+  if (journalEditing) {
+    bar.appendChild(mk('save', 'Save'));
+    bar.appendChild(mk('cancel', 'Cancel'));
+  } else {
+    if (!isStaticBuild()) bar.appendChild(mk('edit', 'Edit'));
+    bar.appendChild(mk('download', 'Download'));
+  }
+}
+
+function enterJournalEdit() {
+  if (!currentJournalEntry || isStaticBuild()) return;
+  journalEditing = true;
+  renderJournalToolbar();
+  renderJournalEntry(currentJournalEntry);
+}
+
+function cancelJournalEdit() {
+  if (!journalEditing) return;
+  journalEditing = false;
+  renderJournalToolbar();
+  if (currentJournalEntry) renderJournalEntry(currentJournalEntry);
+}
+
+async function saveJournalEdit() {
+  const editor = document.getElementById('journalEditor');
+  const entry = currentJournalEntry;
+  if (!editor || !entry) return;
+  const body = editor.value.replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+  const saveBtn = document.querySelector('.journal-tool-btn[data-action="save"]');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+  try {
+    const res = await fetch(JOURNAL_ENDPOINT, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ album: currentAlbum ?? '', month: entry.month, day: entry.day, body })
+    });
+    if (!res.ok) throw new Error('server returned ' + res.status);
+    entry.body = body; // reflect the saved text in the in-memory index (used for download)
+    journalEditing = false;
+    renderJournalToolbar();
+    renderJournalEntry(entry);
+  } catch (err) {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
+    alert('Could not save journal entry: ' + err.message);
+  }
+}
+
+// Reassembles a journal.txt from the current (edited) entries, in date order.
+function buildJournalText() {
+  const entries = Object.values(journalByDate).slice().sort((a, b) => {
+    const da = a.entry_date || `0000-${pad2(a.month)}-${pad2(a.day)}`;
+    const db = b.entry_date || `0000-${pad2(b.month)}-${pad2(b.day)}`;
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
+  return entries.map((e) => `${e.title}\n${e.body}`).join('\n\n') + '\n';
+}
+
+function downloadJournal() {
+  const blob = new Blob([buildJournalText()], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'journal.txt';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function updateJournalTabButtons(showJournal) {
@@ -328,7 +429,9 @@ function updateJournalPanel() {
   // Only rebuild the journal DOM when the entry actually changes (e.g. crossing
   // to a new day), not on every selection within the same day.
   if (entry !== currentJournalEntry) {
+    journalEditing = false; // discard any unsaved edit when moving to another day
     currentJournalEntry = entry;
+    renderJournalToolbar();
     renderJournalEntry(entry);
   }
   const showJournal = journalTabActive;
@@ -883,6 +986,16 @@ async function init() {
     const btn = e.target.closest('.map-tab');
     if (!btn) return;
     setJournalTab(btn.dataset.tab === 'journal');
+  });
+
+  document.getElementById('journalToolbar')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.journal-tool-btn');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === 'edit') enterJournalEdit();
+    else if (action === 'cancel') cancelJournalEdit();
+    else if (action === 'save') saveJournalEdit();
+    else if (action === 'download') downloadJournal();
   });
 
   const timeline = document.querySelector('.timeline');

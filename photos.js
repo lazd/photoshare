@@ -1,10 +1,10 @@
-import { readdir, readFile, mkdir, stat } from 'fs/promises';
+import { readdir, readFile, writeFile, rename, mkdir, stat } from 'fs/promises';
 import { join, extname, resolve, relative } from 'path';
 import exifr from 'exifr';
 import sharp from 'sharp';
 import heicConvert from 'heic-convert';
 import { createHash } from 'crypto';
-import { insertPhoto, photoExistsByPath, getAllPhotos, updatePhotoThumbnail, updatePhotoAlbum, updatePhotoTakenAt, getPhotosWithUtcTakenAt, replaceJournalEntries } from './db.js';
+import { insertPhoto, photoExistsByPath, getAllPhotos, updatePhotoThumbnail, updatePhotoAlbum, updatePhotoTakenAt, getPhotosWithUtcTakenAt, replaceJournalEntries, getJournalEntries } from './db.js';
 import { parseJournal } from './journal.js';
 
 const PHOTOS_DIR = join(process.cwd(), 'photos');
@@ -261,6 +261,28 @@ export async function syncJournals() {
     }
   }
   return seenAlbums.size;
+}
+
+// Regenerates an album's journal.txt from the database so edits made in the app
+// persist to the source file (which syncJournals reads on the next startup).
+// Written atomically via a temp file + rename to avoid a partial/corrupt file.
+export async function writeJournalFile(album) {
+  const entries = getJournalEntries(album);
+  if (entries.length === 0) return null;
+  const sorted = entries.slice().sort((a, b) => {
+    const da = a.entry_date || `0000-${pad2(a.month)}-${pad2(a.day)}`;
+    const db = b.entry_date || `0000-${pad2(b.month)}-${pad2(b.day)}`;
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
+  const text = sorted.map((e) => `${e.title}\n${e.body}`).join('\n\n') + '\n';
+
+  const dir = album ? join(PHOTOS_DIR, album) : PHOTOS_DIR;
+  await ensureDir(dir);
+  const filePath = join(dir, JOURNAL_FILENAME);
+  const tmpPath = `${filePath}.tmp`;
+  await writeFile(tmpPath, text, 'utf-8');
+  await rename(tmpPath, filePath);
+  return filePath;
 }
 
 export function getPhotosDir() {

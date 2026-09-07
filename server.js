@@ -3,14 +3,15 @@ import { join, dirname, resolve, basename, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { readFile, unlink, access } from 'fs/promises';
 import chokidar from 'chokidar';
-import { getAllPhotos, getPhotoByPath, getPhotoByFilename, deletePhotoByPath, getAlbums, getAlbumIconThumbnails, getJournalEntries } from './db.js';
-import { processPhoto, processAllPhotos, getPhotosDir, getConvertedDir } from './photos.js';
+import { getAllPhotos, getPhotoByPath, getPhotoByFilename, deletePhotoByPath, getAlbums, getAlbumIconThumbnails, getJournalEntries, updateJournalEntry } from './db.js';
+import { processPhoto, processAllPhotos, getPhotosDir, getConvertedDir, writeJournalFile } from './photos.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = resolve(__dirname, 'public');
 const app = express();
 const PORT = process.env.PORT || 3192;
 
+app.use(express.json({ limit: '2mb' }));
 app.use(express.static(publicDir, { index: false }));
 app.get('/', async (req, res) => {
   try {
@@ -71,6 +72,24 @@ app.get('/api/journal', (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch journal' });
+  }
+});
+
+app.put('/api/journal', async (req, res) => {
+  try {
+    const { album, month, day, body } = req.body || {};
+    if (month == null || day == null || typeof body !== 'string') {
+      return res.status(400).json({ error: 'month, day and body are required' });
+    }
+    const result = updateJournalEntry(album ?? '', Number(month), Number(day), body);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Journal entry not found' });
+    }
+    await writeJournalFile(album ?? '');
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save journal' });
   }
 });
 
