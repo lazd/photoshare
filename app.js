@@ -1,5 +1,5 @@
 const CONVERTED_BASE = 'images';
-const STATIC_CACHE_BUST = 'd670053153b9';
+const STATIC_CACHE_BUST = 'e02db7ed02b1';
 
 let photos = [];
 let albums = [];
@@ -30,6 +30,7 @@ function parseHash() {
     fullscreen: params.get('fullscreen') === 'true',
     map: mapStyle,
     mapVisible,
+    view: params.get('view') === 'journal' ? 'journal' : 'map',
     album: album !== null ? decodeURIComponent(album) : null
   };
 }
@@ -49,6 +50,9 @@ function updateHash() {
     params.set('map', 'false');
   } else if (currentMapStyle === 'satellite') {
     params.set('map', 'satellite');
+  }
+  if (journalTabActive) {
+    params.set('view', 'journal');
   }
   const newHash = params.toString() ? '#' + params.toString() : '';
   if (location.hash !== newHash) {
@@ -422,6 +426,7 @@ function updateJournalPanel() {
 function setJournalTab(active) {
   journalTabActive = active;
   updateJournalPanel();
+  updateHash();
 }
 
 function flyMapToPhotoObj(photo) {
@@ -846,7 +851,7 @@ function showAlbumView() {
 }
 
 function applyHash() {
-  const { id, fullscreen, map: hashMap, mapVisible, album: hashAlbum } = parseHash();
+  const { id, fullscreen, map: hashMap, mapVisible, view, album: hashAlbum } = parseHash();
 
   if (hashAlbum != null && albums.some((a) => a.album === hashAlbum)) {
     if (hashAlbum !== currentAlbum) {
@@ -876,6 +881,10 @@ function applyHash() {
     updateHash();
   } else if (photos.length > 0 && selectedPhotoId == null) {
     selectPhoto(photos[0].id, { skipHashUpdate: true, instant: true });
+  }
+
+  if ((view === 'journal') !== journalTabActive) {
+    setJournalTab(view === 'journal');
   }
 }
 
