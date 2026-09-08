@@ -5,7 +5,9 @@
   --text-primary: #e6edf3;
   --text-secondary: #8b949e;
   --button-bg: #fff;
+  --button-bg-cta: #1e83b9;
   --button-fg: #424242;
+  --button-fg-cta: #e9f2f8;
   --button-bg-hover: #e0e0e0;
   --button-fg-hover: #151515;
   --button-bg-active: #aeaeae;
@@ -265,6 +267,173 @@ body {
   background: var(--bg-tertiary);
 }
 
+.map-tabs {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--button-bg);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  z-index: 5;
+}
+
+.show-journal .map-tabs {
+  background: var(--button-bg-dark);
+}
+
+.show-journal .map-tab {
+  background: var(--button-bg-dark);
+  color: var(--button-fg-dark);
+}
+
+.map-tab {
+  appearance: none;
+  border: none;
+  background: var(--button-bg);
+  color: var(--button-fg);
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.map-tab:hover {
+  background: var(--button-bg-hover);
+  color: var(--button-fg-hover);
+}
+
+.map-tab.active {
+  background: var(--button-bg-active);
+  color: var(--button-fg-active);
+}
+
+.journal-panel {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius-large);
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 4;
+}
+
+.map-container.show-journal .journal-panel {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.map-container.show-journal #map {
+  display: none;
+}
+
+/* Date headline holds the Save/Cancel buttons inline while editing. A fixed
+   min-height reserves the button's height in both modes so entering edit mode
+   never shifts the body text. */
+.journal-entry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  margin: 0 0 0.85rem;
+}
+
+.journal-entry-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+}
+
+.journal-tool-btn {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: var(--button-bg-dark);
+  color: var(--button-fg-dark);
+  transition: background 0.15s, color 0.15s;
+}
+
+.journal-tool-btn.primary {
+  background: var(--button-bg-cta);
+  color: var(--button-fg-cta);
+}
+
+.journal-tool-btn:hover {
+  background: var(--button-bg-hover);
+  color: var(--button-fg-hover);
+}
+
+.journal-tool-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.journal-entry {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem 3.75rem;
+}
+
+.journal-entry.editable {
+  cursor: text;
+}
+
+/* Seamless with the rendered text: no padding/border/background so clicking to
+   edit swaps paragraphs for the textarea without any layout shift. */
+.journal-editor {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.65;
+  resize: none;
+}
+
+.journal-entry-title {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.journal-entry-para {
+  margin: 0 0 0.9rem;
+  color: var(--text-primary);
+  line-height: 1.65;
+  white-space: pre-line;
+}
+
+.journal-entry-para:last-child {
+  margin-bottom: 0;
+}
+
 .map-layer-btn {
   border-radius: 0;
   box-shadow: none;
@@ -324,7 +493,7 @@ body {
 .timeline-track {
   display: flex;
   gap: 0.5rem;
-  align-items: center;
+  align-items: flex-start;
   min-width: min-content;
 }
 
@@ -335,28 +504,46 @@ body {
 .timeline-cell {
   flex-shrink: 0;
   width: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+}
+
+.timeline-cell.timeline-cell-group-start {
+  margin-left: 0.5rem;
+}
+
+.timeline-cell-thumb {
+  width: 80px;
   height: 80px;
   border-radius: 6px;
   overflow: hidden;
-  cursor: pointer;
   border: 2px solid transparent;
   transition: border-color 0.2s, box-shadow 0.15s;
 }
 
-.timeline-cell:hover {
+.timeline-cell:hover .timeline-cell-thumb {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
-.timeline-cell.selected {
+.timeline-cell.selected .timeline-cell-thumb {
   outline: 3px solid var(--highlight-border);
   outline-offset: 2px;
 }
 
-.timeline-cell img {
+.timeline-cell-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.timeline-date-label {
+  margin-top: 4px;
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .maplibregl-ctrl-compass,

@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=04921b44edb3">
+  <link rel="stylesheet" href="styles.css?v=e70050aa9beb">
 </head>
 <body>
   <div class="album-picker" id="albumPicker">
@@ -65,6 +65,13 @@
       </section>
       <section class="map-container">
         <div id="map"></div>
+        <div class="journal-panel" id="journalPanel" aria-hidden="true">
+          <article class="journal-entry" id="journalEntry"></article>
+        </div>
+        <div class="map-tabs" id="mapTabs" role="tablist" hidden>
+          <button type="button" class="map-tab active" id="mapTabMap" role="tab" data-tab="map" aria-selected="true">Map</button>
+          <button type="button" class="map-tab" id="mapTabJournal" role="tab" data-tab="journal" aria-selected="false">Journal</button>
+        </div>
       </section>
     </main>
     <aside class="timeline">
@@ -76,6 +83,6 @@
     <div class="carousel-viewport"></div>
   </div>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" crossorigin=""></script>
-  <script src="app.js?v=04921b44edb3"></script>
+  <script src="app.js?v=e70050aa9beb"></script>
 </body>
 </html>

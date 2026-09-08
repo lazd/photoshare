@@ -1,0 +1,10 @@
+{
+  "default_branch": "gh-pages",
+  "branches": {
+    "gh-pages": {
+      "db_file": "tokensave.db",
+      "created_at": "1788825758",
+      "last_synced_at": "1788825758"
+    }
+  }
+}

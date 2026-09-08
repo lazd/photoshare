@@ -1,8 +1,10 @@
 const CONVERTED_BASE = 'images';
-const STATIC_CACHE_BUST = '04921b44edb3';
+const STATIC_CACHE_BUST = 'e70050aa9beb';
 
 let photos = [];
 let albums = [];
+let journalByDate = {};
+let journalTabActive = false;
 let currentAlbum = null;
 let map = null;
 let markers = [];
@@ -10,6 +12,7 @@ let selectedPhotoId = null;
 let isTogglingFullscreen = false;
 let isScrollingToSelection = false;
 let isScrollingTimeline = false;
+let isKeyboardNavigating = false;
 let recentlySelectedFromTimeline = false;
 let currentMapStyle = 'map';
 let setMapStyleFn = null;
@@ -113,6 +116,16 @@ async function fetchPhotos(album = null) {
     return _allPhotos.filter((p) => !(p.album || ''));
   }
   return _allPhotos.filter((p) => (p.album || '') === album);
+}
+
+let _allJournal = null;
+async function fetchJournal(album = null) {
+  if (!_allJournal) {
+    const res = await fetch(`journal.json?v=${STATIC_CACHE_BUST}`);
+    _allJournal = res.ok ? await res.json() : [];
+  }
+  const a = album || '';
+  return _allJournal.filter((e) => (e.album || '') === a);
 }
 
 function getZoomForPhoto(photo) {
@@ -242,6 +255,202 @@ function getCarousel() {
   return document.getElementById('photoCarousel');
 }
 
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+let currentJournalEntry = null;
+let journalEditing = false;
+
+// True only in the static (deployed) build, which has no backend to save to.
+function isStaticBuild() {
+  return typeof STATIC_CACHE_BUST !== 'undefined';
+}
+
+function buildJournalIndex(entries) {
+  journalByDate = {};
+  currentJournalEntry = null;
+  journalEditing = false;
+  (entries || []).forEach((e) => {
+    if (e.month == null || e.day == null) return;
+    journalByDate[`${pad2(e.month)}-${pad2(e.day)}`] = e;
+  });
+}
+
+function getJournalEntryForPhoto(photoId) {
+  const photo = photos.find((p) => p.id === photoId);
+  if (!photo) return null;
+  const dateKey = getPhotoDateKey(photo); // YYYY-MM-DD
+  if (!dateKey) return null;
+  return journalByDate[dateKey.slice(5)] || null; // keyed by MM-DD
+}
+
+function makeJournalBtn(action, label, primary) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'journal-tool-btn' + (primary ? ' primary' : '');
+  b.dataset.action = action;
+  b.textContent = label;
+  return b;
+}
+
+function renderJournalEntry(entry) {
+  const container = document.getElementById('journalEntry');
+  if (!container) return;
+  container.innerHTML = '';
+  container.classList.toggle('editable', !journalEditing && !isStaticBuild());
+
+  // Date headline, with the Save/Cancel buttons inline (only while editing).
+  // Keeping them in the header — which is present in both modes — avoids any
+  // layout shift when entering edit mode.
+  const header = document.createElement('div');
+  header.className = 'journal-entry-header';
+  const title = document.createElement('h2');
+  title.className = 'journal-entry-title';
+  title.textContent = entry.title;
+  header.appendChild(title);
+  if (journalEditing) {
+    const actions = document.createElement('div');
+    actions.className = 'journal-entry-actions';
+    actions.appendChild(makeJournalBtn('cancel', 'Cancel'));
+    actions.appendChild(makeJournalBtn('save', 'Save', true));
+    header.appendChild(actions);
+  }
+  container.appendChild(header);
+
+  if (journalEditing) {
+    const editor = document.createElement('textarea');
+    editor.className = 'journal-editor';
+    editor.id = 'journalEditor';
+    editor.value = entry.body;
+    container.appendChild(editor);
+    requestAnimationFrame(() => editor.focus());
+    editor.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); cancelJournalEdit(); }
+    });
+  } else {
+    entry.body.split(/\n{2,}/).forEach((para) => {
+      const p = document.createElement('p');
+      p.className = 'journal-entry-para';
+      p.textContent = para;
+      container.appendChild(p);
+    });
+  }
+  container.scrollTop = 0;
+}
+
+function enterJournalEdit() {
+  if (!currentJournalEntry || isStaticBuild()) return;
+  journalEditing = true;
+  renderJournalEntry(currentJournalEntry);
+}
+
+function cancelJournalEdit() {
+  if (!journalEditing) return;
+  journalEditing = false;
+  if (currentJournalEntry) renderJournalEntry(currentJournalEntry);
+}
+
+async function saveJournalEdit() {
+  const editor = document.getElementById('journalEditor');
+  const entry = currentJournalEntry;
+  if (!editor || !entry) return;
+  const body = editor.value.replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+  const saveBtn = document.querySelector('.journal-tool-btn[data-action="save"]');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+  try {
+    const res = await fetch(JOURNAL_ENDPOINT, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ album: currentAlbum ?? '', month: entry.month, day: entry.day, body })
+    });
+    if (!res.ok) throw new Error('server returned ' + res.status);
+    entry.body = body; // reflect the saved text in the in-memory index
+    journalEditing = false;
+    renderJournalEntry(entry);
+  } catch (err) {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
+    alert('Could not save journal entry: ' + err.message);
+  }
+}
+
+function updateJournalTabButtons(showJournal) {
+  const mapBtn = document.getElementById('mapTabMap');
+  const journalBtn = document.getElementById('mapTabJournal');
+  if (mapBtn) {
+    mapBtn.classList.toggle('active', !showJournal);
+    mapBtn.setAttribute('aria-selected', String(!showJournal));
+  }
+  if (journalBtn) {
+    journalBtn.classList.toggle('active', showJournal);
+    journalBtn.setAttribute('aria-selected', String(showJournal));
+  }
+}
+
+// Reflects the current selection's journal availability: tabs appear only when
+// the selected photo's day has an entry, and the journal panel is shown when
+// the user has the journal tab active.
+function updateJournalPanel() {
+  const tabs = document.getElementById('mapTabs');
+  const panel = document.getElementById('journalPanel');
+  const mapContainer = document.querySelector('.map-container');
+  const entry = getJournalEntryForPhoto(selectedPhotoId);
+
+  if (tabs) tabs.hidden = !entry;
+
+  if (!entry) {
+    currentJournalEntry = null;
+    mapContainer?.classList.remove('show-journal');
+    panel?.setAttribute('aria-hidden', 'true');
+    updateJournalTabButtons(false);
+    return;
+  }
+
+  // Only rebuild the journal DOM when the entry actually changes (e.g. crossing
+  // to a new day), not on every selection within the same day.
+  if (entry !== currentJournalEntry) {
+    journalEditing = false; // discard any unsaved edit when moving to another day
+    currentJournalEntry = entry;
+    renderJournalEntry(entry);
+  }
+  const showJournal = journalTabActive;
+  mapContainer?.classList.toggle('show-journal', showJournal);
+  panel?.setAttribute('aria-hidden', String(!showJournal));
+  updateJournalTabButtons(showJournal);
+}
+
+function setJournalTab(active) {
+  journalTabActive = active;
+  updateJournalPanel();
+}
+
+function flyMapToPhotoObj(photo) {
+  if (!photo || photo.latitude == null || photo.longitude == null || !map) return;
+  const zoom = getZoomForPhoto(photo);
+  const center = map.getCenter();
+  const dist = Math.hypot(photo.latitude - center.lat, photo.longitude - center.lng);
+  const duration = Math.min(1.5, Math.max(0.25, 0.25 + (dist / 0.1) * 1.25));
+  map.flyTo({
+    center: [photo.longitude, photo.latitude],
+    zoom,
+    duration: duration * 1000,
+    essential: true
+  });
+}
+
+// Keyboard navigation can fire faster than the carousel finishes scrolling, so
+// the expensive per-step work (map fly + hash update) is deferred until the
+// user pauses. Only the lightweight carousel/timeline glide runs on each press.
+let navSettleTimer = null;
+function scheduleNavSettle() {
+  clearTimeout(navSettleTimer);
+  navSettleTimer = setTimeout(() => {
+    isKeyboardNavigating = false;
+    flyMapToPhotoObj(photos.find((p) => p.id === selectedPhotoId));
+    updateHash();
+  }, 150);
+}
+
 function selectPhoto(photoId, opts = {}) {
   selectedPhotoId = photoId;
   const photo = photos.find((p) => p.id === photoId);
@@ -259,20 +468,10 @@ function selectPhoto(photoId, opts = {}) {
     setTimeout(() => { isScrollingToSelection = false; }, 800);
   }
 
-  if (photo.latitude != null && photo.longitude != null && map) {
-    const zoom = getZoomForPhoto(photo);
-    const center = map.getCenter();
-    const dist = Math.hypot(photo.latitude - center.lat, photo.longitude - center.lng);
-    const duration = Math.min(1.5, Math.max(0.25, 0.25 + (dist / 0.1) * 1.25));
-    map.flyTo({
-      center: [photo.longitude, photo.latitude],
-      zoom,
-      duration: duration * 1000,
-      essential: true
-    });
-  }
+  if (!opts.skipMapFly) flyMapToPhotoObj(photo);
 
   updateMarkerStyles();
+  updateJournalPanel();
 
   if (!opts.skipTimelineScroll) {
     const cell = document.querySelector(`.timeline-cell[data-photo-id="${photoId}"]`);
@@ -341,24 +540,64 @@ function navigatePhoto(direction) {
   if (idx === -1) return;
   const nextIdx = direction === 'prev' ? idx - 1 : idx + 1;
   if (nextIdx < 0 || nextIdx >= photos.length) return;
-  selectPhoto(photos[nextIdx].id);
+  // Jump instantly to the target: with CSS scroll-snap, repeated smooth scrolls
+  // fight the snap and get pulled back to the current photo when pressing fast.
+  // Map fly + hash are deferred to when the user pauses (scheduleNavSettle).
+  isKeyboardNavigating = true;
+  selectPhoto(photos[nextIdx].id, { instant: true, skipMapFly: true, skipHashUpdate: true });
+  scheduleNavSettle();
+}
+
+function getPhotoDateKey(photo) {
+  const raw = photo.taken_at || photo.created_at;
+  if (!raw) return null;
+  return raw.slice(0, 10);
+}
+
+function formatTimelineDate(dateKey) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  const sameYear = year === new Date().getFullYear();
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: sameYear ? undefined : 'numeric'
+  });
 }
 
 function renderTimeline() {
   const track = document.getElementById('timeline');
   track.innerHTML = '';
 
+  let prevDateKey = undefined;
+
   photos.forEach((photo) => {
     const cell = document.createElement('div');
     cell.className = 'timeline-cell';
     cell.dataset.photoId = photo.id;
+
+    const dateKey = getPhotoDateKey(photo);
+    const isNewGroup = dateKey !== prevDateKey;
+    if (isNewGroup && prevDateKey !== undefined) cell.classList.add('timeline-cell-group-start');
+    prevDateKey = dateKey;
+
+    const thumb = document.createElement('div');
+    thumb.className = 'timeline-cell-thumb';
 
     const img = document.createElement('img');
     img.src = `${CONVERTED_BASE}/${photo.thumbnail_filename || photo.converted_filename}`;
     img.alt = `Photo ${photo.id}`;
     img.loading = 'lazy';
 
-    cell.appendChild(img);
+    thumb.appendChild(img);
+    cell.appendChild(thumb);
+
+    if (isNewGroup && dateKey) {
+      const label = document.createElement('span');
+      label.className = 'timeline-date-label';
+      label.textContent = formatTimelineDate(dateKey);
+      cell.appendChild(label);
+    }
 
     cell.addEventListener('click', () => selectPhoto(photo.id, { instant: true, skipTimelineScroll: true }));
 
@@ -461,9 +700,14 @@ function setupMap() {
   }
 }
 
-const TIMELINE_CELL_WIDTH = 80;
-const TIMELINE_CELL_GAP = 8;
-const TIMELINE_PADDING = 8;
+// Content-space center of a timeline cell (its offset within the scrollable
+// track), measured from the live layout so it accounts for per-group margins,
+// padding, and variable label widths rather than assuming a uniform grid.
+function timelineCellCenter(timeline, cell) {
+  const tRect = timeline.getBoundingClientRect();
+  const cRect = cell.getBoundingClientRect();
+  return timeline.scrollLeft + (cRect.left - tRect.left) + cRect.width / 2;
+}
 
 function syncTimelineToCarousel(carousel) {
   if (isScrollingTimeline || recentlySelectedFromTimeline) return;
@@ -471,8 +715,14 @@ function syncTimelineToCarousel(carousel) {
   if (!timeline || !carousel || photos.length <= 1) return;
   const slideWidth = carousel.offsetWidth;
   if (slideWidth <= 0) return;
+  const cells = timeline.querySelectorAll('.timeline-cell');
+  if (cells.length === 0) return;
   const f = getCarouselFractionalIndex(carousel);
-  const cellCenter = TIMELINE_PADDING + f * (TIMELINE_CELL_WIDTH + TIMELINE_CELL_GAP) + TIMELINE_CELL_WIDTH / 2;
+  const i0 = Math.max(0, Math.min(cells.length - 1, Math.floor(f)));
+  const i1 = Math.min(cells.length - 1, i0 + 1);
+  const c0 = timelineCellCenter(timeline, cells[i0]);
+  const c1 = timelineCellCenter(timeline, cells[i1]);
+  const cellCenter = c0 + (c1 - c0) * (f - i0); // interpolate as we scroll between photos
   const targetScroll = Math.max(0, Math.min(
     Math.max(0, timeline.scrollWidth - timeline.offsetWidth),
     cellCenter - timeline.offsetWidth / 2
@@ -490,6 +740,7 @@ function setupCarouselScrollSync(scrollEl, opts = {}) {
       el.classList.toggle('selected', el.dataset.photoId === String(photoId));
     });
     updateMarkerStyles();
+    updateJournalPanel();
     if (updateHashNow) updateHash();
     if (opts.onSync && typeof opts.onSync === 'function') opts.onSync(photoId);
   }
@@ -519,6 +770,10 @@ function setupCarouselScrollSync(scrollEl, opts = {}) {
   }
 
   function onCarouselScroll() {
+    // While selectPhoto is animating the carousel, it also owns the timeline
+    // position (via scrollIntoView). Syncing the timeline from these scroll
+    // events here would fight that animation and make navigation jerky.
+    if (isScrollingToSelection) return;
     const photoId = getPhotoAtScrollPosition(scrollEl);
     syncTimelineToCarousel(scrollEl);
     syncSelection(photoId, false);
@@ -527,6 +782,9 @@ function setupCarouselScrollSync(scrollEl, opts = {}) {
   function onCarouselScrollEnd() {
     isScrollingToSelection = false;
     if (isTogglingFullscreen) return;
+    // Keyboard nav owns the selection and defers map/hash to scheduleNavSettle;
+    // the instant per-press scrolls each fire scrollend, so don't act on them.
+    if (isKeyboardNavigating) return;
     const photoId = getPhotoAtScrollPosition(scrollEl);
     syncTimelineToCarousel(scrollEl);
     syncSelection(photoId, false);
@@ -629,9 +887,16 @@ async function selectAlbum(album) {
 }
 
 async function loadAlbum(album) {
-  photos = await fetchPhotos(album);
+  const [albumPhotos, journalEntries] = await Promise.all([
+    fetchPhotos(album),
+    fetchJournal(album)
+  ]);
+  photos = albumPhotos;
+  journalTabActive = false;
+  buildJournalIndex(journalEntries);
   renderTimeline();
   setupMap();
+  updateJournalPanel();
 
   const previewContainer = document.getElementById('photoPreview');
   if (photos.length === 0) {
@@ -694,6 +959,23 @@ async function init() {
     radio.addEventListener('change', (e) => {
       if (setMapStyleFn && e.target.value) setMapStyleFn(e.target.value);
     });
+  });
+
+  document.getElementById('mapTabs')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.map-tab');
+    if (!btn) return;
+    setJournalTab(btn.dataset.tab === 'journal');
+  });
+
+  // Save/Cancel live in the date header; clicking the text elsewhere edits.
+  document.getElementById('journalEntry')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.journal-tool-btn');
+    if (btn) {
+      if (btn.dataset.action === 'save') saveJournalEdit();
+      else if (btn.dataset.action === 'cancel') cancelJournalEdit();
+      return;
+    }
+    if (!journalEditing) enterJournalEdit();
   });
 
   const timeline = document.querySelector('.timeline');
