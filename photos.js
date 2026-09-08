@@ -4,7 +4,7 @@ import exifr from 'exifr';
 import sharp from 'sharp';
 import heicConvert from 'heic-convert';
 import { createHash } from 'crypto';
-import { insertPhoto, photoExistsByPath, getAllPhotos, updatePhotoThumbnail, updatePhotoAlbum, updatePhotoTakenAt, getPhotosWithUtcTakenAt, replaceJournalEntries, getJournalEntries } from './db.js';
+import { insertPhoto, photoExistsByPath, getPhotoByPath, getAllPhotos, getAllPhotosForStatic, updatePhotoThumbnail, updatePhotoAlbum, updatePhotoTakenAt, updatePhotoSourceMtime, getPhotosWithUtcTakenAt, replaceJournalEntries, getJournalEntries } from './db.js';
 import { parseJournal } from './journal.js';
 
 const PHOTOS_DIR = join(process.cwd(), 'photos');
@@ -121,6 +121,11 @@ export async function processPhoto(originalPath, album = '') {
     return null;
   }
 
+  let sourceMtime = null;
+  try {
+    sourceMtime = Math.floor((await stat(resolvedPath)).mtimeMs);
+  } catch (_) {}
+
   const photo = {
     original_path: resolvedPath,
     converted_filename: convertedFilename,
@@ -128,7 +133,8 @@ export async function processPhoto(originalPath, album = '') {
     album: album ?? '',
     latitude: latitude ?? null,
     longitude: longitude ?? null,
-    taken_at: takenAt
+    taken_at: takenAt,
+    source_mtime: sourceMtime
   };
 
   insertPhoto(photo);
@@ -137,7 +143,7 @@ export async function processPhoto(originalPath, album = '') {
 
 export async function syncThumbnails() {
   const resizeOptions = { fit: 'inside', withoutEnlargement: true };
-  const photosWithoutThumb = getAllPhotos().filter(p => !p.thumbnail_filename);
+  const photosWithoutThumb = getAllPhotosForStatic().filter(p => !p.thumbnail_filename); // all albums
   let generated = 0;
   for (const photo of photosWithoutThumb) {
     try {
@@ -181,8 +187,23 @@ export async function processAllPhotos() {
   let processed = 0;
   for (const { path: filePath, album } of filesWithAlbums) {
     const resolved = resolve(filePath);
-    if (photoExistsByPath(resolved)) {
+    const existing = getPhotoByPath(resolved);
+    if (existing) {
       updatePhotoAlbum(resolved, album);
+      // Re-process when the source file changed since it was last converted, so
+      // replacing/editing a photo in place refreshes its image and metadata.
+      let currentMtime = null;
+      try {
+        currentMtime = Math.floor((await stat(resolved)).mtimeMs);
+      } catch (_) {}
+      if (currentMtime != null) {
+        if (existing.source_mtime == null) {
+          updatePhotoSourceMtime(resolved, currentMtime); // backfill without re-converting
+        } else if (existing.source_mtime !== currentMtime) {
+          const result = await processPhoto(filePath, album);
+          if (result) { processed++; console.log('Re-processed changed photo:', filePath); }
+        }
+      }
       continue;
     }
     const result = await processPhoto(filePath, album);

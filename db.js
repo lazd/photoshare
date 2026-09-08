@@ -42,13 +42,21 @@ try {
 try {
   db.prepare('ALTER TABLE photos ADD COLUMN album TEXT').run();
 } catch (_) {}
+try {
+  db.prepare('ALTER TABLE photos ADD COLUMN source_mtime INTEGER').run();
+} catch (_) {}
 
 export function insertPhoto(photo) {
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO photos (original_path, converted_filename, thumbnail_filename, album, latitude, longitude, taken_at)
-    VALUES (@original_path, @converted_filename, @thumbnail_filename, @album, @latitude, @longitude, @taken_at)
+    INSERT OR REPLACE INTO photos (original_path, converted_filename, thumbnail_filename, album, latitude, longitude, taken_at, source_mtime)
+    VALUES (@original_path, @converted_filename, @thumbnail_filename, @album, @latitude, @longitude, @taken_at, @source_mtime)
   `);
-  stmt.run(photo);
+  stmt.run({ source_mtime: null, ...photo });
+}
+
+export function updatePhotoSourceMtime(originalPath, mtime) {
+  const stmt = db.prepare('UPDATE photos SET source_mtime = ? WHERE original_path = ?');
+  return stmt.run(mtime, originalPath);
 }
 
 export function getAllPhotos(album = null) {

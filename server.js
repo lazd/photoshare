@@ -3,7 +3,7 @@ import { join, dirname, resolve, basename, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { readFile, unlink, access } from 'fs/promises';
 import chokidar from 'chokidar';
-import { getAllPhotos, getPhotoByPath, getPhotoByFilename, deletePhotoByPath, getAlbums, getAlbumIconThumbnails, getJournalEntries, updateJournalEntry } from './db.js';
+import { getAllPhotos, getAllPhotosForStatic, getPhotoByPath, getPhotoByFilename, deletePhotoByPath, getAlbums, getAlbumIconThumbnails, getJournalEntries, updateJournalEntry } from './db.js';
 import { processPhoto, processAllPhotos, getPhotosDir, getConvertedDir, writeJournalFile } from './photos.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -94,7 +94,7 @@ app.put('/api/journal', async (req, res) => {
 });
 
 async function syncDeletedPhotos() {
-  const photos = getAllPhotos();
+  const photos = getAllPhotosForStatic(); // all albums, not just the root album
   let removed = 0;
   for (const photo of photos) {
     try {
