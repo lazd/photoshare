@@ -1,5 +1,5 @@
 const CONVERTED_BASE = 'images';
-const STATIC_CACHE_BUST = 'e70050aa9beb';
+const STATIC_CACHE_BUST = 'd670053153b9';
 
 let photos = [];
 let albums = [];
@@ -930,7 +930,10 @@ async function init() {
 
   const albumExists = hashAlbum != null && albums.some((a) => a.album === hashAlbum);
   if (albumExists) {
-    await selectAlbum(hashAlbum);
+    // Route through applyHash (not selectAlbum) so the photo param is applied
+    // before the hash is rewritten — selectAlbum's early updateHash() would drop
+    // photo=<id> because nothing is selected yet.
+    applyHash();
   } else {
     renderAlbumPicker();
     showAlbumPicker();
